@@ -8,32 +8,32 @@ import com.gamyeon.user.application.port.inbound.OAuthLoginCommand;
 import com.gamyeon.user.application.port.inbound.UserInfo;
 import com.gamyeon.user.application.port.outbound.OAuthPort;
 import com.gamyeon.user.application.port.outbound.RefreshTokenRepository;
+import com.gamyeon.user.application.port.outbound.TokenPort;
 import com.gamyeon.user.application.port.outbound.UserRepository;
 import com.gamyeon.user.domain.OAuthProvider;
 import com.gamyeon.user.domain.RefreshToken;
 import com.gamyeon.user.domain.User;
 import com.gamyeon.user.domain.UserDomainException;
 import com.gamyeon.user.domain.UserErrorCode;
-import com.gamyeon.user.infrastructure.security.JwtProvider;
 
 public class AuthService implements AuthUseCase {
 
   private final UserRepository userRepository;
   private final RefreshTokenRepository refreshTokenRepository;
   private final OAuthPort oAuthPort;
-  private final JwtProvider jwtProvider;
+  private final TokenPort tokenPort;
   private final NicknameResolver nicknameResolver;
 
   public AuthService(
       UserRepository userRepository,
       RefreshTokenRepository refreshTokenRepository,
       OAuthPort oAuthPort,
-      JwtProvider jwtProvider,
+      TokenPort tokenPort,
       NicknameResolver nicknameResolver) {
     this.userRepository = userRepository;
     this.refreshTokenRepository = refreshTokenRepository;
     this.oAuthPort = oAuthPort;
-    this.jwtProvider = jwtProvider;
+    this.tokenPort = tokenPort;
     this.nicknameResolver = nicknameResolver;
   }
 
@@ -41,7 +41,8 @@ public class AuthService implements AuthUseCase {
     OAuthProvider provider = command.getProvider();
     String authCode = command.getAuthorizationCode();
 
-    String oauthAccessToken = oAuthPort.getAccessToken(provider, authCode);
+    String oauthAccessToken =
+        oAuthPort.getAccessToken(provider, authCode, command.getCodeVerifier());
     OAuthPort.OAuthUserInfo oAuthUserInfo = oAuthPort.getUserInfo(provider, oauthAccessToken);
 
     String email = resolveEmail(provider, oAuthUserInfo);
@@ -109,11 +110,11 @@ public class AuthService implements AuthUseCase {
   }
 
   private LoginResult issueTokens(User user) {
-    String accessToken = jwtProvider.createAccessToken(user.getId(), user.getEmail());
-    String refreshTokenValue = jwtProvider.createRefreshToken(user.getId());
+    String accessToken = tokenPort.createAccessToken(user.getId());
+    String refreshTokenValue = tokenPort.createRefreshToken(user.getId());
 
     RefreshToken refreshToken =
-        RefreshToken.create(user.getId(), refreshTokenValue, jwtProvider.getRefreshTokenExpiry());
+        RefreshToken.create(user.getId(), refreshTokenValue, tokenPort.getRefreshTokenExpiry());
     refreshTokenRepository.save(refreshToken);
 
     return LoginResult.of(accessToken, refreshTokenValue, UserInfo.from(user));

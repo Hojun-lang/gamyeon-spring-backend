@@ -6,14 +6,17 @@ public class OAuthLoginCommand {
 
   private final OAuthProvider provider;
   private final String authorizationCode;
+  private final String codeVerifier;
 
-  private OAuthLoginCommand(OAuthProvider provider, String authorizationCode) {
+  private OAuthLoginCommand(OAuthProvider provider, String authorizationCode, String codeVerifier) {
     this.provider = provider;
     this.authorizationCode = authorizationCode;
+    this.codeVerifier = codeVerifier;
   }
 
-  public static OAuthLoginCommand of(OAuthProvider provider, String authorizationCode) {
-    return new OAuthLoginCommand(provider, authorizationCode);
+  public static OAuthLoginCommand of(
+      OAuthProvider provider, String authorizationCode, String codeVerifier) {
+    return new OAuthLoginCommand(provider, authorizationCode, codeVerifier);
   }
 
   public OAuthProvider getProvider() {
@@ -22,5 +25,9 @@ public class OAuthLoginCommand {
 
   public String getAuthorizationCode() {
     return authorizationCode;
+  }
+
+  public String getCodeVerifier() {
+    return codeVerifier;
   }
 }

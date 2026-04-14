@@ -1,5 +1,6 @@
 package com.gamyeon.user.infrastructure.security;
 
+import com.gamyeon.user.application.port.outbound.TokenPort;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -9,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import javax.crypto.SecretKey;
 
-public class JwtProvider {
+public class JwtProvider implements TokenPort {
 
   private final SecretKey secretKey;
   private final long accessTokenExpiry;
@@ -21,17 +22,18 @@ public class JwtProvider {
     this.refreshTokenExpiry = properties.getRefreshTokenExpiry();
   }
 
-  public String createAccessToken(Long userId, String email) {
+  @Override
+  public String createAccessToken(Long userId) {
     Date now = new Date();
     return Jwts.builder()
         .subject(String.valueOf(userId))
-        .claim("email", email)
         .issuedAt(now)
         .expiration(new Date(now.getTime() + accessTokenExpiry))
         .signWith(secretKey)
         .compact();
   }
 
+  @Override
   public String createRefreshToken(Long userId) {
     Date now = new Date();
     return Jwts.builder()
@@ -42,10 +44,12 @@ public class JwtProvider {
         .compact();
   }
 
-  public Claims getClaims(String token) {
-    return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
+  @Override
+  public long getRefreshTokenExpiry() {
+    return refreshTokenExpiry;
   }
 
+  @Override
   public boolean validateToken(String token) {
     try {
       getClaims(token);
@@ -57,15 +61,12 @@ public class JwtProvider {
     }
   }
 
+  @Override
   public Long getUserId(String token) {
     return Long.parseLong(getClaims(token).getSubject());
   }
 
-  public String getEmail(String token) {
-    return getClaims(token).get("email", String.class);
-  }
-
-  public long getRefreshTokenExpiry() {
-    return refreshTokenExpiry;
+  public Claims getClaims(String token) {
+    return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
   }
 }

@@ -3,7 +3,6 @@ package com.gamyeon.user.infrastructure.web;
 import com.gamyeon.common.exception.CommonErrorCode;
 import com.gamyeon.common.exception.CommonException;
 import com.gamyeon.common.response.SuccessResponse;
-import com.gamyeon.common.security.CurrentUserId;
 import com.gamyeon.user.application.port.inbound.AuthUseCase;
 import com.gamyeon.user.application.port.inbound.LoginResult;
 import com.gamyeon.user.application.port.inbound.OAuthLoginCommand;
@@ -13,6 +12,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,7 +36,8 @@ public class AuthController {
     log.info("Received login request. provider={}", provider);
 
     OAuthProvider oAuthProvider = parseProvider(provider);
-    OAuthLoginCommand command = OAuthLoginCommand.of(oAuthProvider, request.authorizationCode());
+    OAuthLoginCommand command =
+        OAuthLoginCommand.of(oAuthProvider, request.authorizationCode(), request.codeVerifier());
     LoginResult result = authUseCase.login(command);
     return ResponseEntity.ok(
         SuccessResponse.of(UserSuccessCode.USER_LOGIN, LoginResponse.from(result)));
@@ -53,7 +54,7 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<SuccessResponse<Void>> logout(@CurrentUserId Long userId) {
+  public ResponseEntity<SuccessResponse<Void>> logout(@AuthenticationPrincipal Long userId) {
     log.info("Received logout request. userId={}", userId);
 
     authUseCase.logout(userId);
@@ -68,7 +69,7 @@ public class AuthController {
     };
   }
 
-  public record LoginRequest(@NotBlank String authorizationCode) {}
+  public record LoginRequest(@NotBlank String authorizationCode, @NotBlank String codeVerifier) {}
 
   public record ReissueRequest(@NotBlank String refreshToken) {}
 

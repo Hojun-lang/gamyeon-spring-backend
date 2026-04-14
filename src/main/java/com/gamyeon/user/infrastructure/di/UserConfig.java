@@ -4,6 +4,7 @@ import com.gamyeon.user.application.port.inbound.AuthUseCase;
 import com.gamyeon.user.application.port.inbound.UserUseCase;
 import com.gamyeon.user.application.port.outbound.OAuthPort;
 import com.gamyeon.user.application.port.outbound.RefreshTokenRepository;
+import com.gamyeon.user.application.port.outbound.TokenPort;
 import com.gamyeon.user.application.port.outbound.UserRepository;
 import com.gamyeon.user.application.service.AuthService;
 import com.gamyeon.user.application.service.NicknameResolver;
@@ -22,7 +23,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class UserConfig {
 
   @Bean
-  public JwtProvider jwtProvider(JwtProperties jwtProperties) {
+  public TokenPort tokenPort(JwtProperties jwtProperties) {
     return new JwtProvider(jwtProperties);
   }
 
@@ -46,10 +47,10 @@ public class UserConfig {
       UserRepository userRepository,
       RefreshTokenRepository refreshTokenRepository,
       OAuthPort oAuthPort,
-      JwtProvider jwtProvider,
+      TokenPort tokenPort,
       NicknameResolver nicknameResolver) {
     return new AuthService(
-        userRepository, refreshTokenRepository, oAuthPort, jwtProvider, nicknameResolver);
+        userRepository, refreshTokenRepository, oAuthPort, tokenPort, nicknameResolver);
   }
 
   @Bean
