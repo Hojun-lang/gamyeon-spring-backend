@@ -39,7 +39,6 @@ storage:
     bucket: test-bucket
     region: ap-northeast-2
     presigned-duration-seconds: 900
-    #  중요: 빈 값으로 두지 말고 아무 문자열이나 채워넣어야 SDK 에러가 안 납니다.
     access-key: dummy-access-key
     secret-key: dummy-secret-key
 
