@@ -1,29 +1,28 @@
 spring:
   application:
     name: gamyeon-backend
-  config:
-    import: "optional:consul:"
+  # consul 관련 전체 제거
   cloud:
     compatibility-verifier:
       enabled: false
-    consul:
-      host: ${CONSUL_HOST:localhost}
-      port: ${CONSUL_PORT:8500}
-      config:
-        enabled: true
-        format: YAML
-        data-key: data
-      discovery:
-        enabled: true
-        service-name: gamyeon-backend
-        instance-id: gamyeon-spring-server-${random.value}
-        fail-fast: false
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: true
+
+cloud:
+  aws:
+    region:
+      static: ${AWS_REGION:ap-northeast-2}
 
 jwt:
   access-token-expiry: 3600000
@@ -31,4 +30,4 @@ jwt:
 
 ai:
   server:
-    url: "http://agent-server:8000"
+    url: ${AI_SERVER_URL:http://agent-server:8000}
