@@ -1,7 +1,6 @@
 spring:
   application:
     name: gamyeon-backend
-  # consul 관련 전체 제거
   cloud:
     compatibility-verifier:
       enabled: false
