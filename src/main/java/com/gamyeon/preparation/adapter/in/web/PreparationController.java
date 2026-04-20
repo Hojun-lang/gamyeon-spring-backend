@@ -9,6 +9,7 @@ import com.gamyeon.preparation.domain.PreparationSuccessCode;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,10 +33,9 @@ public class PreparationController {
 
   @PostMapping("/{intvId}/files")
   public ResponseEntity<ApiResponse<PreparationFileRegisterResponse>> registerFile(
-      Long userId,
+      @AuthenticationPrincipal Long userId,
       @PathVariable Long intvId,
       @Valid @RequestBody PreparationFileRegisterRequest request) {
-    userId = 1L;
     log.info(
         "Received register preparation files request. userId={}, intvId={}, fileCount={}",
         userId,
@@ -53,8 +53,9 @@ public class PreparationController {
 
   @PostMapping("/{intvId}/files/presigned-url")
   public ResponseEntity<ApiResponse<PreparationResponse>> issueUploadUrl(
-      Long userId, @PathVariable Long intvId, @Valid @RequestBody PreparationRequest request) {
-    userId = 1L;
+      @AuthenticationPrincipal Long userId,
+      @PathVariable Long intvId,
+      @Valid @RequestBody PreparationRequest request) {
     log.info(
         "Received preparation upload URL request. userId={}, intvId={}, fileType={}, originalFileName={}, fileSizeBytes={}",
         userId,
