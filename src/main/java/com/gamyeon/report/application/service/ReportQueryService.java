@@ -15,6 +15,8 @@ import com.gamyeon.report.infrastructure.web.dto.ReportDetailResponse;
 import com.gamyeon.report.infrastructure.web.dto.ReportListResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,10 +39,21 @@ public class ReportQueryService
   @Transactional(readOnly = true)
   public List<ReportListResponse> getList(Long userId) {
     List<Report> reports = loadReportPort.findAllByUserId(userId);
+
+    if (reports.isEmpty()) {
+      return List.of();
+    }
+
+    //  intvId 목록 추출 → IN 쿼리 1회 조회 → Map으로 매핑 (N+1 제거)
+    List<Long> intvIds = reports.stream().map(Report::getIntvId).toList();
+    Map<Long, Intv> intvMap =
+        loadIntvPort.findAllByIds(intvIds).stream()
+            .collect(Collectors.toMap(Intv::getId, intv -> intv));
+
     return reports.stream()
         .map(
             report -> {
-              Intv intv = loadIntvPort.findById(report.getIntvId()).orElse(null);
+              Intv intv = intvMap.get(report.getIntvId());
               return ReportListResponse.of(
                   report.getIntvId(),
                   intv != null ? intv.getTitle() : null,

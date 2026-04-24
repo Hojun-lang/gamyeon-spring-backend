@@ -36,4 +36,13 @@ public class IntvRepositoryImpl implements IntvRepository {
         .map(JpaIntvRepository.FinishedIntvDailyCountProjection::toInfo)
         .toList();
   }
+
+  // Report N+1 개선용 — JpaRepository 내장 findAllById() 활용 (IN 쿼리 1회)
+  @Override
+  public List<Intv> findAllByIds(List<Long> ids) {
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    return jpaIntvRepository.findAllById(ids);
+  }
 }

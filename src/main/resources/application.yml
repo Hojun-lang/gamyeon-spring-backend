@@ -4,6 +4,14 @@ spring:
   cloud:
     compatibility-verifier:
       enabled: false
+    openfeign:
+      client:
+        config:
+          ai-report-client:
+            connect-timeout: 3000
+            read-timeout: 180000
+      circuitbreaker:
+        enabled: false  # Feign 자동 통합 비활성 — @CircuitBreaker 수동 방식 사용
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -17,6 +25,31 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+# ── 서버 설정 (spring.* 네임스페이스 충돌 방지를 위해 분리) ────────────────────
+server:
+  callback-base-url: ${CALLBACK_BASE_URL:http://spring-server:8080}
+
+# ── Report 설정 ────────────────────────────────────────────────────────────
+report:
+  total-question-count: 7
+  scheduler:
+    timeout-minutes: 30  # Phase 2에서 ReportScheduler에 연결
+
+# ── Resilience4j 서킷 브레이커 ──────────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiReportClient:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 200s
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
 
 cloud:
   aws:

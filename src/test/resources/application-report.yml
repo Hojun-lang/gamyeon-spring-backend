@@ -14,6 +14,39 @@ spring:
         enabled: false
       discovery:
         enabled: false
+    openfeign:
+      client:
+        config:
+          ai-report-client:
+            connect-timeout: 3000
+            read-timeout: 180000
+      circuitbreaker:
+        enabled: false  # 테스트에서 Feign 자동 서킷 브레이커 비활성
+
+# ── 서버 설정 ──────────────────────────────────────────────────────────────
+server:
+  callback-base-url: http://localhost:8080
+
+# ── Report 설정 ────────────────────────────────────────────────────────────
+report:
+  total-question-count: 7
+  scheduler:
+    timeout-minutes: 30
+
+# ── Resilience4j (테스트에서는 서킷 즉시 트립되지 않도록 임계값 완화) ────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      aiReportClient:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 200s
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
 
 jwt:
   secret: test-secret-key-minimum-32-characters!!
@@ -33,7 +66,6 @@ oauth:
     client-secret: test-kakao-client-secret
     redirect-uri: http://localhost:8080/login/oauth2/code/kakao
 
-
 storage:
   s3:
     bucket: test-bucket
@@ -42,4 +74,6 @@ storage:
     access-key: dummy-access-key
     secret-key: dummy-secret-key
 
-# 리포트 테스트에 필요한 추가 설정이 있다면 여기에 작성
+ai:
+  server:
+    url: http://localhost:8000

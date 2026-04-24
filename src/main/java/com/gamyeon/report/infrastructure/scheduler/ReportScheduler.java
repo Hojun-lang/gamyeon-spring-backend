@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,14 +18,17 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ReportScheduler {
 
-  private static final int TIMEOUT_MINUTES = 5;
+  // application.yml 외부화 (기본값 30분)
+  @Value("${report.scheduler.timeout-minutes:30}")
+  private int timeoutMinutes;
 
   private final LoadReportPort loadReportPort;
   private final GenerateReportUseCase generateReportUseCase;
 
   @Scheduled(fixedDelay = 60_000) // 1분 주기
   public void triggerTimedOutReports() {
-    LocalDateTime threshold = LocalDateTime.now().minusMinutes(TIMEOUT_MINUTES);
+    // updatedAt 기준 timeoutMinutes 초과 레코드만 처리
+    LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
 
     List<Report> timedOutReports =
         loadReportPort.findAllTimedOut(ReportStatus.IN_PROGRESS, threshold);
@@ -33,7 +37,7 @@ public class ReportScheduler {
       return;
     }
 
-    log.info("[Report] 스케줄러 실행 - 타임아웃 대상 {}건", timedOutReports.size());
+    log.info("[Report] 스케줄러 실행 - 타임아웃 대상 {}건 (기준: {}분 초과)", timedOutReports.size(), timeoutMinutes);
 
     for (Report report : timedOutReports) {
       try {

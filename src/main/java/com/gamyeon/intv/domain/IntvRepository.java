@@ -11,6 +11,9 @@ public interface IntvRepository {
 
   Optional<Intv> findById(Long id);
 
+  // Report BC N+1 개선용 추가
+  List<Intv> findAllByIds(List<Long> ids);
+
   List<FinishedIntvDailyCountInfo> findFinishedIntvCountByDateAndUserId(
       Long userId, LocalDateTime startDateTime, LocalDateTime endDateTime);
 }
