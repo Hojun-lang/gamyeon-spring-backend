@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public class InternalApiKeyFilter extends OncePerRequestFilter {
 
-  private static final String INTERNAL_PATH_PREFIX = "/api/internal/";
+  private static final String INTERNAL_PATH_PREFIX = "/internal/";
   private static final String API_KEY_HEADER = "X-Internal-API-Key";
 
   private final String internalApiKey;

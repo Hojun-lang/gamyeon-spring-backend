@@ -26,7 +26,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       List.of(
           "/api/v1/auth/login/**",
           "/api/v1/auth/reissue",
-          "/api/internal/**",
+          "/internal/**",
           "/health",
           "/actuator/**");
 
