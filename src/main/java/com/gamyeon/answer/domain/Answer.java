@@ -87,6 +87,11 @@ public class Answer extends BaseEntity {
         intvId, questionSetId, originalFileName, fileKey, fileUrl, contentType, fileSizeBytes);
   }
 
+  public void markSttPending() {
+    this.status = AnswerStatus.STT_PENDING;
+    this.errorMessage = null;
+  }
+
   public void markSttProcessing() {
     this.status = AnswerStatus.STT_PROCESSING;
     this.errorMessage = null;

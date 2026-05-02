@@ -10,10 +10,10 @@ import com.gamyeon.answer.application.port.in.RegisterAnswerResult;
 import com.gamyeon.answer.application.port.in.RegisterAnswerUseCase;
 import com.gamyeon.answer.application.port.in.RequestAnswerAnalysisCommand;
 import com.gamyeon.answer.application.port.in.RequestAnswerAnalysisUseCase;
-import com.gamyeon.answer.application.port.out.AnswerAnalysisTarget;
 import com.gamyeon.answer.application.port.out.LoadQuestionSetPort;
-import com.gamyeon.answer.application.port.out.RequestAnswerSttAnalysisPort;
 import com.gamyeon.answer.domain.Answer;
+import com.gamyeon.answer.domain.AnswerAnalysisJob;
+import com.gamyeon.answer.domain.AnswerAnalysisJobRepository;
 import com.gamyeon.answer.domain.AnswerErrorCode;
 import com.gamyeon.answer.domain.AnswerException;
 import com.gamyeon.answer.domain.AnswerRepository;
@@ -24,6 +24,7 @@ import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlPort;
 import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlResult;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,23 +43,23 @@ public class AnswerApplicationService
       Set.of("video/mp4", "video/webm");
 
   private final AnswerRepository answerRepository;
+  private final AnswerAnalysisJobRepository answerAnalysisJobRepository;
   private final StorageFileKeyGenerator storageFileKeyGenerator;
   private final StoragePresignedUrlPort storagePresignedUrlPort;
-  private final RequestAnswerSttAnalysisPort requestAnswerSttAnalysisPort;
   private final AnswerAnalysisProperties answerAnalysisProperties;
   private final LoadQuestionSetPort loadQuestionSetPort;
 
   public AnswerApplicationService(
       AnswerRepository answerRepository,
+      AnswerAnalysisJobRepository answerAnalysisJobRepository,
       StorageFileKeyGenerator storageFileKeyGenerator,
       StoragePresignedUrlPort storagePresignedUrlPort,
-      RequestAnswerSttAnalysisPort requestAnswerSttAnalysisPort,
       AnswerAnalysisProperties answerAnalysisProperties,
       LoadQuestionSetPort loadQuestionSetPort) {
     this.answerRepository = answerRepository;
+    this.answerAnalysisJobRepository = answerAnalysisJobRepository;
     this.storageFileKeyGenerator = storageFileKeyGenerator;
     this.storagePresignedUrlPort = storagePresignedUrlPort;
-    this.requestAnswerSttAnalysisPort = requestAnswerSttAnalysisPort;
     this.answerAnalysisProperties = answerAnalysisProperties;
     this.loadQuestionSetPort = loadQuestionSetPort;
   }
@@ -136,67 +137,96 @@ public class AnswerApplicationService
             .findById(command.answerId())
             .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_NOT_FOUND));
 
-    if (answer.getStatus() == AnswerStatus.STT_PROCESSING) {
+    if (answer.getStatus() == AnswerStatus.STT_PROCESSING
+        || answer.getStatus() == AnswerStatus.STT_PENDING
+        || answerAnalysisJobRepository.existsActiveJobByAnswerId(answer.getId())) {
       throw new AnswerException(AnswerErrorCode.ANALYSIS_ALREADY_IN_PROGRESS);
     }
     if (answer.getStatus() == AnswerStatus.STT_COMPLETED) {
       throw new AnswerException(AnswerErrorCode.ANALYSIS_ALREADY_COMPLETED);
     }
-    String questionContent = loadQuestionSetPort.getQuestionContent(answer.getQuestionSetId());
 
-    AnswerAnalysisTarget target =
-        new AnswerAnalysisTarget(
-            answer.getIntvId(), answer.getQuestionSetId(), questionContent, answer.getFileKey());
+    loadQuestionSetPort.getQuestionContent(answer.getQuestionSetId());
 
-    answer.markSttProcessing();
+    String requestId = UUID.randomUUID().toString();
+    AnswerAnalysisJob job =
+        AnswerAnalysisJob.create(
+            answer.getId(), requestId, answerAnalysisProperties.getMaxRetryCount());
+
+    answer.markSttPending();
     answerRepository.save(answer);
-
-    try {
-      requestAnswerSttAnalysisPort.request(target);
-      log.info(
-          "STT analysis request accepted. answerId={}, questionSetId={}",
-          answer.getId(),
-          answer.getQuestionSetId());
-    } catch (Exception e) {
-      log.error(
-          "STT analysis request failed. answerId={}, questionSetId={}",
-          answer.getId(),
-          answer.getQuestionSetId(),
-          e);
-      throw new AnswerException(AnswerErrorCode.ANSWER_ANALYSIS_REQUEST_FAILED);
-    }
+    answerAnalysisJobRepository.save(job);
+    log.info(
+        "STT analysis request accepted. answerId={}, questionSetId={}, requestId={}",
+        answer.getId(),
+        answer.getQuestionSetId(),
+        requestId);
   }
 
   @Override
   public void handle(HandleAnswerSttCallbackCommand command) {
     log.info(
-        "Handling STT callback. intvId={}, questionSetId={}, hasError={}, hasPayload={}",
+        "Handling STT callback. requestId={}, intvId={}, questionSetId={}, hasError={}, hasPayload={}",
+        command.requestId(),
         command.intvId(),
         command.questionSetId(),
         command.errorMessage() != null && !command.errorMessage().isBlank(),
         command.callbackPayload() != null);
+    AnswerAnalysisJob job = loadCallbackTargetJob(command);
+    if (job.isTerminal()) {
+      log.info(
+          "Ignoring duplicate STT callback for terminal job. requestId={}, answerId={}, jobStatus={}",
+          job.getRequestId(),
+          job.getAnswerId(),
+          job.getStatus());
+      return;
+    }
+
     Answer answer =
         answerRepository
-            .findByQuestionSetId(command.questionSetId())
+            .findById(job.getAnswerId())
             .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_NOT_FOUND));
 
     if (command.errorMessage() != null && !command.errorMessage().isBlank()) {
+      job.markFailed(command.errorMessage());
       answer.failStt(command.errorMessage(), command.callbackPayload());
+      answerAnalysisJobRepository.save(job);
       answerRepository.save(answer);
       log.warn(
-          "STT callback reported failure. answerId={}, questionSetId={}, errorMessage={}",
+          "STT callback reported failure. requestId={}, answerId={}, questionSetId={}, errorMessage={}",
+          job.getRequestId(),
           answer.getId(),
           answer.getQuestionSetId(),
           command.errorMessage());
       return;
     }
 
+    job.complete();
     answer.completeStt(command.callbackPayload());
+    answerAnalysisJobRepository.save(job);
     answerRepository.save(answer);
     log.info(
-        "STT callback completed. answerId={}, questionSetId={}",
+        "STT callback completed. requestId={}, answerId={}, questionSetId={}",
+        job.getRequestId(),
         answer.getId(),
         answer.getQuestionSetId());
+  }
+
+  private AnswerAnalysisJob loadCallbackTargetJob(HandleAnswerSttCallbackCommand command) {
+    if (command.requestId() != null && !command.requestId().isBlank()) {
+      return answerAnalysisJobRepository
+          .findByRequestId(command.requestId())
+          .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_NOT_FOUND));
+    }
+
+    Answer answer =
+        answerRepository
+            .findByQuestionSetId(command.questionSetId())
+            .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_NOT_FOUND));
+
+    return answerAnalysisJobRepository
+        .findLatestByAnswerId(answer.getId())
+        .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_NOT_FOUND));
   }
 
   private void validateVideoFile(String originalFileName, String contentType) {

@@ -32,7 +32,14 @@ public class AnswerGazeApplicationService implements SendAnswerGazeSegmentUseCas
       throw new AnswerException(AnswerErrorCode.QUESTION_SET_NOT_FOUND);
     }
 
-    sendAnswerGazeToAiPort.send(
-        new AnswerGazeSegmentPayload(command.questionSetId(), command.body()));
+    try {
+      sendAnswerGazeToAiPort.send(
+          new AnswerGazeSegmentPayload(command.questionSetId(), command.body()));
+    } catch (Exception e) {
+      log.warn(
+          "Failed to forward gaze segment to AI server. questionSetId={}",
+          command.questionSetId(),
+          e);
+    }
   }
 }

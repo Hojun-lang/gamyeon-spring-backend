@@ -24,7 +24,8 @@ public class AnswerCallbackController {
   public ResponseEntity<ApiResponse<Void>> handleSttCallback(
       @Valid @RequestBody AnswerSttCallbackRequest request) {
     log.info(
-        "Received STT callback request. intvId={}, questionSetId={}, hasError={}",
+        "Received STT callback request. requestId={}, intvId={}, questionSetId={}, hasError={}",
+        request.requestId(),
         request.intvId(),
         request.questionSetId(),
         request.errorMessage() != null && !request.errorMessage().isBlank());

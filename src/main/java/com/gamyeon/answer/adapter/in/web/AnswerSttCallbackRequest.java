@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record AnswerSttCallbackRequest(
+    String requestId,
     @NotNull Long intvId,
     @NotNull Long questionSetId,
     Boolean degraded,
@@ -14,7 +15,8 @@ public record AnswerSttCallbackRequest(
     String errorMessage) {
 
   public HandleAnswerSttCallbackCommand toCommand(JsonNode callbackPayload) {
-    return new HandleAnswerSttCallbackCommand(intvId, questionSetId, callbackPayload, errorMessage);
+    return new HandleAnswerSttCallbackCommand(
+        requestId, intvId, questionSetId, callbackPayload, errorMessage);
   }
 
   public record AnswerText(
