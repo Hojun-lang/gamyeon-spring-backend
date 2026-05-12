@@ -25,10 +25,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
 # ── 서버 설정 (spring.* 네임스페이스 충돌 방지를 위해 분리) ────────────────────
 server:
-  callback-base-url: ${CALLBACK_BASE_URL:http://spring-server:8080}
+  callback-base-url: ${SPRING_INTERNAL_BASE_URL:http://spring-server:8080}
+
 
 # ── Report 설정 ────────────────────────────────────────────────────────────
 report:
