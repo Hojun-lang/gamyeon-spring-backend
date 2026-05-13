@@ -22,9 +22,12 @@ public class FeedbackWebhookController {
   public ResponseEntity<ApiResponse<Void>> receiveWebhook(
       @Valid @RequestBody FeedbackWebhookRequest request) {
     log.info(
-        "[Webhook 수신] questionSetId={}, status={}", request.intvQuestionId(), request.status());
+        "[Webhook 수신] requestId={}, questionSetId={}, status={}",
+        request.requestId(),
+        request.intvQuestionId(),
+        request.status());
 
-    feedbackWebhookUseCase.handleWebhook(request);
+    feedbackWebhookUseCase.handleWebhook(request.toCommand());
 
     return ResponseEntity.ok(ApiResponse.success("FDBK-S000", "success"));
   }

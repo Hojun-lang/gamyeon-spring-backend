@@ -8,7 +8,10 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "FEEDBACKS")
+@Table(
+    name = "FEEDBACKS",
+    uniqueConstraints =
+        @UniqueConstraint(name = "uk_feedbacks_question_set_id", columnNames = "question_set_id"))
 public class FeedbackEntity {
 
   @Id
@@ -50,9 +53,7 @@ public class FeedbackEntity {
 
   // ── 엔티티 → 도메인 변환 ────────────────────────────────────────────
   public Feedback toDomain() {
-    Feedback f = Feedback.createInProgress(intvId, questionSetId, content);
-    f.assignId(id);
-    return f;
+    return Feedback.restore(id, intvId, questionSetId, status, content, createdAt, updatedAt);
   }
 
   // JPA 기본 생성자

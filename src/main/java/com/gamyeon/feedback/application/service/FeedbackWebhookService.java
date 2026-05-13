@@ -2,74 +2,100 @@ package com.gamyeon.feedback.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamyeon.feedback.application.FeedbackCallbackProperties;
 import com.gamyeon.feedback.application.exception.FeedbackSerializationException;
-import com.gamyeon.feedback.application.exception.QuestionSetNotFoundException;
+import com.gamyeon.feedback.application.port.in.FeedbackWebhookCommand;
 import com.gamyeon.feedback.application.port.in.FeedbackWebhookUseCase;
-import com.gamyeon.feedback.domain.Feedback;
-import com.gamyeon.feedback.domain.FeedbackStatus;
-import com.gamyeon.feedback.domain.event.FeedbackSavedEvent;
-import com.gamyeon.feedback.infrastructure.persistence.FeedbackPersistenceAdapter;
-import com.gamyeon.feedback.infrastructure.persistence.QuestionSetRepository;
-import com.gamyeon.feedback.infrastructure.web.dto.FeedbackWebhookRequest;
+import com.gamyeon.feedback.domain.FeedbackCallbackJob;
+import com.gamyeon.feedback.domain.FeedbackCallbackJobRepository;
+import com.gamyeon.feedback.domain.FeedbackCallbackJobStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FeedbackWebhookService implements FeedbackWebhookUseCase {
 
-  private final FeedbackPersistenceAdapter feedbackPersistence;
-  private final QuestionSetRepository questionSetRepository; // QUESTION_SETS 조회용
+  private final FeedbackCallbackJobRepository feedbackCallbackJobRepository;
+  private final FeedbackCallbackProperties feedbackCallbackProperties;
   private final ObjectMapper objectMapper;
-  private final ApplicationEventPublisher eventPublisher;
 
   @Override
-  @Transactional
-  public void handleWebhook(FeedbackWebhookRequest request) {
-    Long questionSetId = request.intvQuestionId();
+  public void handleWebhook(FeedbackWebhookCommand command) {
+    Long questionSetId = command.intvQuestionId();
+    String requestId = normalize(command.requestId());
+    String rawPayload = serialize(command);
 
-    // ① QUESTION_SETS → intv_id 추출
-    Long intvId =
-        questionSetRepository
-            .findIntvIdById(questionSetId)
-            .orElseThrow(() -> new QuestionSetNotFoundException(questionSetId));
-
-    // ② 멱등성 처리 — 이미 완료된 요청은 무시
-    boolean alreadyProcessed = feedbackPersistence.existsCompletedByQuestionSetId(questionSetId);
-    if (alreadyProcessed) {
-      log.info("[Feedback] 중복 요청 무시 | questionSetId={}", questionSetId);
+    if (requestId != null
+        && feedbackCallbackJobRepository
+            .findByRequestId(requestId)
+            .map(job -> handleExistingJob(job, requestId, rawPayload))
+            .orElse(false)) {
       return;
     }
 
-    // ③ Webhook Body 전체를 JSON 문자열로 직렬화
-    String contentJson = serialize(request);
+    if (feedbackCallbackJobRepository
+        .findByQuestionSetId(questionSetId)
+        .map(job -> handleExistingJob(job, requestId, rawPayload))
+        .orElse(false)) {
+      return;
+    }
 
-    // ④ IN_PROGRESS 상태로 FEEDBACKS 튜플 생성
-    Feedback feedback = Feedback.createInProgress(intvId, questionSetId, contentJson);
-    feedbackPersistence.save(feedback);
-    log.info("[Feedback] IN_PROGRESS 저장 완료 | questionSetId={}", questionSetId);
+    FeedbackCallbackJob job =
+        FeedbackCallbackJob.create(
+            questionSetId, requestId, rawPayload, feedbackCallbackProperties.getMaxRetryCount());
 
-    // ⑤ 최종 상태로 업데이트 (SUCCEED / FAILED)
-    FeedbackStatus finalStatus = FeedbackStatus.fromWebhook(request.status());
-    feedback.complete(finalStatus, contentJson);
-    feedbackPersistence.update(feedback);
-    log.info("[Feedback] {} 업데이트 완료 | id={}", finalStatus, feedback.getId());
-
-    // ⑥ 이벤트 발행 — Report 모듈이 구독
-    eventPublisher.publishEvent(new FeedbackSavedEvent(intvId, questionSetId, finalStatus));
-    log.info(
-        "[Feedback] FeedbackSavedEvent 발행 | intvId={}, questionSetId={}", intvId, questionSetId);
+    try {
+      feedbackCallbackJobRepository.save(job);
+      log.info(
+          "[Feedback] callback job 접수 완료 | jobId={}, requestId={}, questionSetId={}",
+          job.getId(),
+          requestId,
+          questionSetId);
+    } catch (DataIntegrityViolationException e) {
+      log.info(
+          "[Feedback] 동시 중복 callback job 접수 무시 | requestId={}, questionSetId={}",
+          requestId,
+          questionSetId);
+    }
   }
 
-  private String serialize(FeedbackWebhookRequest request) {
+  private String serialize(FeedbackWebhookCommand request) {
     try {
       return objectMapper.writeValueAsString(request);
     } catch (JsonProcessingException e) {
       throw new FeedbackSerializationException("Webhook body 직렬화 실패", e);
     }
+  }
+
+  private String normalize(String requestId) {
+    if (requestId == null || requestId.isBlank()) {
+      return null;
+    }
+    return requestId;
+  }
+
+  private boolean handleExistingJob(FeedbackCallbackJob job, String requestId, String rawPayload) {
+    if (job.getStatus() == FeedbackCallbackJobStatus.FAILED) {
+      job.reopen(requestId, rawPayload, feedbackCallbackProperties.getMaxRetryCount());
+      feedbackCallbackJobRepository.save(job);
+      log.info(
+          "[Feedback] FAILED callback job 재접수 | jobId={}, requestId={}, questionSetId={}",
+          job.getId(),
+          job.getRequestId(),
+          job.getQuestionSetId());
+      return true;
+    }
+
+    log.info(
+        "[Feedback] 중복 callback job 접수 무시 | jobId={}, requestId={}, questionSetId={}, status={}",
+        job.getId(),
+        requestId,
+        job.getQuestionSetId(),
+        job.getStatus());
+    return true;
   }
 }
