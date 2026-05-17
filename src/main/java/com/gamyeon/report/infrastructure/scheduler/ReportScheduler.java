@@ -18,8 +18,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ReportScheduler {
 
-  // application.yml 외부화 (기본값 30분)
-  @Value("${report.scheduler.timeout-minutes:30}")
+  // application.yml 외부화, 기본값 5분
+  @Value("${report.scheduler.timeout-minutes:5}")
   private int timeoutMinutes;
 
   private final LoadReportPort loadReportPort;

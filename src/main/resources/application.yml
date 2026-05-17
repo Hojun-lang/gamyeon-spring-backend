@@ -34,7 +34,7 @@ server:
 report:
   total-question-count: 7
   scheduler:
-    timeout-minutes: 30  # Phase 2에서 ReportScheduler에 연결
+    timeout-minutes: 5
 
 # ── Resilience4j 서킷 브레이커 ──────────────────────────────────────────────
 resilience4j:
