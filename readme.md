@@ -298,136 +298,107 @@ application layer は repository、storage、AI client の具体実装を直接�
 
 ## Troubleshooting
 
-### 1. `spotlessJavaCheck` が失敗する
+### 1. 回答動画が S3 で質問ごとのフォルダに分散する問題
 
-症状:
+問題:
 
-```text
-Execution failed for task ':spotlessJavaCheck'
-The following files had format violations
-```
-
-原因:
-
-Java コードが google-java-format の規則に従っていない場合に発生します。
-
-解決方法:
-
-```bash
-./gradlew spotlessApply
-./gradlew clean build
-```
-
-### 2. Gradle wrapper の lock ファイル権限エラー
-
-症状:
+回答動画の presigned URL を発行する際、最初は `questionSetId` を S3 key の path segment として利用していました。
 
 ```text
-java.io.FileNotFoundException:
-~/.gradle/wrapper/dists/.../gradle-*.zip.lck
-Operation not permitted
+answers/{questionSetId}/video/{uuid}-{fileName}
 ```
 
-原因:
+この構造では、1 つの面接が 7 問で構成される場合、S3 bucket 上に質問ごとのフォルダが 7 個作成されます。そのため、運用時に「1 つの面接に属する回答動画」を一覧で確認しづらい問題がありました。
 
-実行環境で `~/.gradle` キャッシュディレクトリへアクセスできない、または sandbox 環境でホームディレクトリへの書き込みが制限されている場合に発生します。
+解決:
 
-解決方法:
-
-- ローカルターミナルで直接実行する
-- `~/.gradle` ディレクトリの権限を確認する
-- CI 環境では Gradle cache の権限を明示的に設定する
-
-### 3. PostgreSQL に接続できない
-
-症状:
+クライアント API は既存のまま `questionSetId` を受け取り、サーバー内部で `questionSetId` から `intvId` を取得する方式に変更しました。S3 key 生成時のみ `intvId` を利用します。
 
 ```text
-Connection refused
-FATAL: password authentication failed
+answers/{intvId}/{uuid}-{fileName}
 ```
 
-原因:
+これにより、フロントエンドの API 契約を変更せずに、S3 上では面接単位で回答動画を管理できるようにしました。
 
-`SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` が誤っている、または PostgreSQL が起動していない場合に発生します。
+### 2. AI callback の重複処理問題
 
-解決方法:
+問題:
 
-```bash
-docker ps
+AI サーバーとの連携は callback ベースで行われます。ネットワーク再送や AI サーバー側の retry により、同じ質問に対する feedback callback が複数回届く可能性があります。
+
+単純に callback を受け取るたびに保存すると、同じ質問に対して複数の feedback が作成され、Report 生成条件や集計結果が不安定になります。
+
+解決:
+
+`FeedbackWebhookService` で `questionSetId` 基準の完了済み feedback が存在するか先に確認し、すでに処理済みの callback は無視するようにしました。
+
+```java
+boolean alreadyProcessed = feedbackPersistence.existsCompletedByQuestionSetId(questionSetId);
+if (alreadyProcessed) {
+    return;
+}
 ```
 
-DB コンテナが存在しない場合は、PostgreSQL を先に起動し、環境変数を再確認します。
+callback API は外部システムと接続される境界であるため、冪等性をアプリケーションレベルで保証するように設計しました。
 
-### 4. AI サーバー呼び出しに失敗する
+### 3. レポート生成タイミングの競合問題
 
-症状:
+問題:
 
-```text
-AI question generation request failed
-STT analysis request failed
-AI report generation request failed
+レポート生成は `InterviewFinishedEvent` と `FeedbackSavedEvent` の両方を契機に実行されます。つまり、面接終了イベントと最後の feedback 保存イベントが近いタイミングで発生すると、同じ面接に対して report 生成リクエストが重複実行される可能性があります。
+
+解決:
+
+`ReportGenerateService` では `findByIntvIdWithLock` を使い、Report row に pessimistic write lock を取得してから状態を確認します。
+
+```java
+Report report = loadReportPort.findByIntvIdWithLock(intvId).orElseGet(...);
+if (report.getStatus() != ReportStatus.IN_PROGRESS) {
+    return;
+}
 ```
 
-原因:
+これにより、複数イベントが同時に到達しても 1 つの transaction だけが report を処理し、すでに処理済みの report は即時に return するようにしました。
 
-`AI_SERVER_URL` が誤っている、または AI サーバーが起動していない場合に発生します。
+### 4. AI レポート callback の JSONB 保存問題
 
-解決方法:
+問題:
 
-```bash
-curl http://localhost:8000/health
+AI サーバーから受け取る report 詳細データはネストされた JSON 構造です。これを Hibernate JSONB カラムに DTO オブジェクトのまま保存しようとすると、型変換の過程で例外が発生したり、DB カラムと JSONB 内部の値がずれたりする可能性があります。
+
+解決:
+
+`ReportCallbackService` では callback DTO を `ObjectMapper.convertValue` で `Map<String, Object>` に変換した後、同じ Map から `total_score`, `answered_count` を抽出するようにしました。
+
+```java
+Map<String, Object> reportDataMap = objectMapper.convertValue(detail, Map.class);
 ```
 
-AI サーバーが別のコンテナネットワークに存在する場合は、`localhost` ではなくサービス名を使用します。
+これにより、JSONB に保存されるデータと別カラムに保存される要約値の source を 1 つに統一しました。
 
-### 5. S3 presigned URL アップロードに失敗する
+### 5. AI 質問生成に失敗すると面接進行が止まる問題
 
-症状:
+問題:
 
-```text
-403 Forbidden
-SignatureDoesNotMatch
-AccessDenied
-```
+質問生成は外部 AI サーバーに依存します。AI サーバーが応答しない、またはエラーを返すと、ユーザーは質問を受け取れず面接を進められません。
 
-原因:
+解決:
 
-AWS region、bucket policy、IAM 権限、または presigned URL 生成時の content type と実際のアップロードリクエストの `Content-Type` が一致しない場合に発生することがあります。
+`QuestionSetApplicationService` では AI 質問生成リクエストが失敗すると `status = "FAIL"` として質問生成ロジックを呼び出し、カスタム質問は 0 件として扱います。その後、共通質問 repository から必要な件数の質問を取得し、質問セットを構成します。
 
-解決方法:
+この fallback により、AI カスタム質問生成に失敗しても面接自体は進行できます。
 
-- `AWS_REGION` の値を確認する
-- S3 bucket policy と IAM 権限を確認する
-- presigned URL 発行時の `contentType` とアップロード時の `Content-Type` を一致させる
+### 6. 大容量ファイルアップロード時のサーバー負荷問題
 
-### 6. Feedback / Report テスト時に Docker 依存のエラーが発生する
+問題:
 
-症状:
+履歴書 PDF や回答動画を Spring サーバーが直接 multipart で受け取ると、サーバーメモリ使用量とネットワーク負荷が大きくなります。特に回答動画はサイズが大きくなりやすいため、API サーバーがファイル転送のボトルネックになる可能性があります。
 
-テストまたはローカル実行中に DB / 外部サービス接続エラーが発生します。
+解決:
 
-解決方法:
+ファイルアップロードは S3 presigned URL ベースで設計しました。サーバーはファイル拡張子、content type、size を検証し、presigned URL と file key のみを発行します。実際のファイル body はクライアントが S3 に直接アップロードします。
 
-```bash
-docker ps
-```
-
-必要な DB または外部サービスコンテナが起動しているか確認します。
-
-### 7. Report が生成されない
-
-原因:
-
-Report 生成は、すべてのフィードバックが成功した場合、またはスケジューラー基準の最小フィードバック数を満たした場合に進行します。
-
-確認項目:
-
-- 面接が `FINISHED` 状態か
-- Feedback callback が保存されているか
-- `FeedbackSavedEvent` が発行されているか
-- `reports` レコードが `IN_PROGRESS` 状態か
-- AI report callback が正常に届いているか
+これにより、Spring サーバーはファイルデータではなく metadata のみを管理するようになり、アップロード負荷を下げつつ storage の責務を S3 に分離しました。
 
 ## 今後の改善案
 
