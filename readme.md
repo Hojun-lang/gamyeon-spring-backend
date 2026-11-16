@@ -1,410 +1,409 @@
-# Gamyeon Backend
+# Gamyeon | AI模擬面接プラットフォーム
 
-Gamyeon は、履歴書・ポートフォリオ・自己紹介書をもとに AI が模擬面接を構成し、回答動画の STT 分析、質問別フィードバック、総合レポート生成まで支援する AI 面接練習サービスです。
+**Java 17 · Spring Boot 3.5.11 · Backend Development Portfolio**
 
-このリポジトリは Spring Boot で実装されたバックエンドサーバーです。ユーザー認証、面接セッション管理、資料アップロード、質問生成依頼、回答動画管理、AI サーバーとの非同期連携、フィードバック保存、レポート生成トリガーを担当します。
+> 🇰🇷 **한국어로 읽으시는 분께:** 이 README는 일본 취업용 포트폴리오를 목적으로 일본어를 먼저 작성했습니다. 한국어 설명은 문서 아래쪽의 **[한국어 버전 바로가기](#korean-version)**에서 확인해 주세요.
+>
+> 🇯🇵 **日本語版を先に掲載しています。** 韓国語版は[こちら](#korean-version)です。
 
-## 主な機能
+---
 
-| 機能 | 説明 |
+<a id="japanese-version"></a>
+
+## 🇯🇵 日本語版
+
+### はじめに
+
+**Gamyeon** は、履歴書・ポートフォリオ・自己紹介書をもとに、AIによる面接質問の生成、回答分析、質問別フィードバック、総合レポートの提供を行う模擬面接Webサービスです。
+
+本サービスは**複数のメンバーによるチーム開発**で制作しました。私は **Spring Bootバックエンドチームの一員**として、面接の進行管理、回答データの処理、AIサーバーとの連携、および既存のCallback処理の改善などを担当しました。
+
+> **本リポジトリについて**  
+> チーム開発のSpring BootバックエンドをForkした、個人の開発実績紹介用リポジトリです。以下では **サービス全体の機能・技術** と **私自身が実装・改善した箇所** を明確に分けています。Python AIサーバー、フロントエンド、バックオフィス、およびSpringバックエンドの一部機能は他のメンバーが担当しました。PRの原文は韓国語のため、担当変更を日本語で要約しています。
+
+### 1. プロジェクト概要
+
+| 項目 | 内容 |
 |---|---|
-| OAuth ログイン | Google / Kakao OAuth 認証と JWT access token / refresh token の発行 |
-| 面接セッション管理 | 面接の作成、タイトル変更、開始、一時停止、再開、終了、日別完了数の集計 |
-| 面接準備資料管理 | 履歴書、ポートフォリオ、自己紹介書のアップロード URL 発行とメタデータ保存 |
-| AI 質問生成 | 準備資料を AI サーバーへ渡し、カスタム質問と共通質問を組み合わせた質問セットを生成 |
-| 回答動画管理 | 回答動画アップロード用 presigned URL の発行と回答メタデータの保存 |
-| STT 分析連携 | 回答動画を AI サーバーへ分析依頼し、callback で STT 結果を保存 |
-| 視線分析連携 | 回答中の gaze segment を AI サーバーへ転送 |
-| 質問別フィードバック | AI サーバー callback を受け取り、質問ごとの評価結果を保存 |
-| 総合レポート | フィードバックが揃ったタイミングで AI レポート生成を依頼し、総合評価を保存 |
-| ダッシュボード | 面接統計、Notice 一覧・詳細 API |
+| 開発形態 | チーム開発 |
+| 対象リポジトリ | Spring Bootバックエンド |
+| 私の担当 | 面接・質問・回答・準備資料関連のAPI、AI連携処理の改善、Callback処理のリファクタリング、退会・復旧機能など |
+| 主な目的 | 模擬面接の実施とAIによる振り返り支援 |
 
-## サービスフロー
+**主な機能（サービス全体）**
 
-```text
-1. ユーザーが OAuth でログイン
-        |
-2. 面接セッションを作成
-        |
-3. 履歴書などの準備資料を S3 にアップロード
-        |
-4. Spring サーバーが AI サーバーへ質問生成を依頼
-        |
-5. AI サーバー callback により質問セットを保存
-        |
-6. ユーザーが質問ごとに回答動画を S3 にアップロード
-        |
-7. Spring サーバーが STT / gaze 分析を AI サーバーへ依頼
-        |
-8. AI サーバー callback により回答分析・フィードバックを保存
-        |
-9. 面接終了イベントとフィードバック保存イベントをもとにレポート生成をトリガー
-        |
-10. AI サーバー callback により総合レポートを保存
-```
+| 機能 | 概要 |
+|---|---|
+| ユーザー認証 | OAuth2ログインとJWTによる認証 |
+| 面接準備 | 履歴書などの資料をS3へアップロード |
+| 質問生成 | AIカスタム質問（最大4問）と共通質問を組み合わせ、基本的に7問を構成 |
+| 模擬面接 | 回答動画の登録、面接の一時停止・再開、進捗管理 |
+| 回答分析 | Python AIサーバーへのSTT等の分析依頼と結果受信 |
+| フィードバック | 質問別の評価結果の保存 |
+| 総合レポート | 面接結果の集約・閲覧 |
+| アカウント管理 | 退会・一定期間内の復旧、期限経過後の削除 |
 
-## アーキテクチャ
+<!-- TODO: 公開許可を確認した実際のサービス画面を追加 -->
 
-このプロジェクトは、ドメインごとに責務を分離した Layered Architecture / Hexagonal Architecture に近い構成を採用しています。
+### 2. システム構成
 
 ```text
-src/main/java/com/gamyeon
-├── user          # OAuth、JWT、ユーザープロフィール
-├── intv          # 面接セッションのライフサイクル
-├── preparation   # 準備資料と S3 アップロードフロー
-├── question      # AI 質問、カスタム質問、共通質問の生成
-├── answer        # 回答動画、STT、視線分析連携
-├── feedback      # 質問別フィードバック callback
-├── report        # 総合レポート生成と照会
-├── dashboard     # 統計とお知らせ
-└── common        # 共通レスポンス、例外、セキュリティ、ストレージ
+             Frontend / Backoffice
+                       |
+                    REST API
+                       |
+             Spring Boot Backend
+             /         |         \
+       OAuth/JWT   Interview/API   S3 Presigned URL
+                       |                 |
+                 外部AI連携             AWS S3
+                       |
+                 Python AI Server
+                       |
+                非同期Callback
+                       |
+             Spring Boot Backend
+                       |
+                   PostgreSQL
 ```
 
-### 設計上のポイント
+この図はサービス全体の概念的な構成です。Python側でのAI処理そのものは担当していません。
 
-- `domain` は状態遷移やビジネスルールを保持します。
-- `application` はユースケースとトランザクション境界を管理します。
-- `port` は外部依存を抽象化します。
-- `adapter` / `infrastructure` は Web、JPA、Feign、S3 などの詳細実装を担当します。
-- AI サーバー連携は callback ベースで非同期処理します。
-- ファイルアップロードは Spring サーバーを経由せず、S3 presigned URL を利用します。
+Springバックエンドはドメインごとに機能を分割し、**一部のモジュールでPort / Adapterによる依存分離**を取り入れています。すべてのモジュールが同じ構造ではないため、完全なヘキサゴナルアーキテクチャとは表現していません。
 
-## 技術スタック
+- **Domain:** 状態・ビジネスルール
+- **Application:** ユースケースと処理の調整
+- **Port:** 永続化や外部サービスへの依存の抽象化
+- **Adapter / Infrastructure:** JPA、Web、Feign、S3などの実装
+
+### 3. 技術スタック（プロジェクト全体）
 
 | 分類 | 技術 |
 |---|---|
-| Language | Java 17 |
-| Framework | Spring Boot 3 |
-| Build | Gradle |
-| ORM | Spring Data JPA / Hibernate |
-| Database | PostgreSQL |
-| Auth | Spring Security, JWT, OAuth2 |
-| External API | OpenFeign, WebFlux |
-| Storage | AWS S3 presigned URL |
-| JSONB | Hibernate `@JdbcTypeCode(SqlTypes.JSON)` |
-| Test | JUnit 5, Mockito, Spring Security Test |
-| Format | Spotless, google-java-format |
-| Deploy | Docker |
+| Language / Framework | Java 17, Spring Boot 3.5.11 |
+| Database / ORM | PostgreSQL, Spring Data JPA, Hibernate |
+| Authentication | Spring Security, OAuth2, JWT |
+| AI連携 | OpenFeign, Callback, Job / Scheduler |
+| Storage | AWS S3, Presigned URL |
+| Testing | JUnit 5, Mockito, Spring Boot Test |
+| Build / Deploy | Gradle, Docker, AWS EC2 |
+| Collaboration | Git, GitHub, Pull Request |
 
-## 主なドメイン
+※上記はチーム全体の技術構成です。**OAuth/JWT基盤、AIレポート生成処理、CI/CDなどを私が単独で構築したという意味ではありません。**
 
-### User / Auth
+### 4. 私の実装・改善実績
 
-Google または Kakao OAuth 認証コードを受け取り、外部 OAuth API からユーザー情報を取得します。ユーザーが存在しない場合は新規作成し、access token と refresh token を発行します。
+**主な担当範囲**
 
-refresh token は DB に保存します。再発行時には既存 refresh token を削除し、新しい token を発行することで、トークンのライフサイクルをサーバー側で管理します。
+- 面接作成、進行状態、一時停止・再開、回答進捗・次の質問の取得に関する機能の実装・改善
+- 準備資料の登録・アップロードAPI、質問生成リクエストと質問セット管理に関する実装・改善
+- AIへの回答分析依頼をJobとして管理する仕組み、スケジューラーによる送信・再試行・滞留Jobの復旧
+- **既存のFeedback機能を土台とした** Callback受付・保存処理の分離と冪等性の強化
+- S3に保存する回答動画のキー構造改善
+- **既存の認証基盤に対する追加機能として** 退会・猶予期間・復旧・期限経過後の削除処理を実装
+- 面接一覧向けのレポート**要約照会**の改善（AIレポート生成ロジックそのものは担当外）
 
-### Interview
+**主なPR・コミット（本人の変更履歴）**
 
-`Intv` は面接セッションのライフサイクルを管理します。
+| 記録 | 対象 | 主な変更内容 |
+|---|---|---|
+| [PR #14](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/14) | Answer | `AnswerAnalysisJob`導入、分析依頼の送信・再試行管理、スケジューラー、滞留Job復旧、関連テスト |
+| [PR #17](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/17) | Feedback | 既存Callback処理をJobベースへリファクタリング、重複受付防止、限定的な再試行、関連テスト |
+| [PR #29](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/29) | Interview | 一時停止・再開、回答進捗と次の質問の照会、質問順序、一覧・レポート要約照会の改善 |
+| [PR #32](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/32) | Answer / S3 | 回答動画の保存先を`questionSetId`基準から`intvId`基準へ変更 |
+| [PR #41](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/41) | User | 退会・7日間の復旧猶予・アカウント復旧・期限経過後のデータ削除処理 |
+| [commit `88e0ae9`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/88e0ae97) | Question | AI質問生成リクエスト失敗時の共通質問によるFallbackと質問セット重複生成の防止 |
+| [commit `b1cf305`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/b1cf305) / [commit `8afaf4c`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/8afaf4c4) | Preparation | 資料アップロード・登録APIと複数資料の登録処理 |
+
+※PRにはチーム内で調整したファイルも含まれます。**表の内容は各PRで確認できた私の変更内容の要約**であり、関係する全モジュールの単独開発を意味しません。
+
+### 5. 技術的な課題と改善
+
+#### Case 1 — 回答分析依頼のJob化と再試行（PR #14）
+
+**課題:** 回答の分析結果と外部AIサーバーへの送信・再試行状態を混在させると、通信障害や処理途中での停止から復旧しにくくなります。
+
+**対応:** `AnswerAnalysisJob`を導入し、リクエスト送信状態、再試行回数、次回再試行時刻、エラー情報を管理しました。送信処理とDBトランザクション処理を分け、スケジューラーで未送信Jobを処理する構造へ改善しました。
+
+Feignの再試行可能な例外、HTTP **429 / 5xx** などは再試行対象とし、長時間`SENDING`のまま残るJobには復旧処理を設けました。**すべてのエラーを一律に再試行するものではありません。**
+
+**結果:** 回答データの分析結果状態と外部送信処理の責務を分離し、障害発生時の再試行・復旧状態を追跡できる構造にしました。
+
+**関連コード:** `AnswerAnalysisJob`, `AnswerAnalysisDispatchService`, `AnswerAnalysisDispatchTransactionService`, `AnswerAnalysisScheduler`
+
+#### Case 2 — Feedback Callbackの重複防止と復旧（PR #17）
+
+**課題:** AIサーバーから同じCallbackが再送された場合、同じ質問に対するフィードバックが二重保存される可能性があります。既存のFeedback機能を改善し、重複と並行リクエストを考慮した処理が必要でした。
+
+**対応:**
+
+1. `requestId`と`questionSetId`で受信済みJobを確認し、DBのUnique制約でも重複登録を防止
+2. Callbackの内容を`FeedbackCallbackJob`として先に保存し、受信処理と実際の保存処理を分離
+3. スケジューラーの処理対象取得に悲観的ロックを使用
+4. Feedback保存時も既存データ確認・`questionSetId`のUnique制約を利用
+5. DBロック失敗など限定された例外で再試行し、長時間`PROCESSING`状態のJobを復旧
+6. 新しいFeedbackが保存された場合にのみ後続イベントを発行
+
+**結果:** 再送や並行リクエストによる二重保存を防ぐための多段階の防御を実装し、処理状態・失敗内容を確認しやすくしました。
+
+**関連コード:** `FeedbackWebhookService`, `FeedbackCallbackJob`, `FeedbackCallbackProcessingTransactionService`
+
+#### Case 3 — 面接の一時停止・再開と進捗復元（PR #29）
+
+**課題:** 面接の中断後に再開する際、状態の変更だけでなく、回答済みの質問・次の質問・回答順序を整合的に扱う必要がありました。
+
+**対応:** 面接の状態遷移を整理し、`getResumeContext()`から回答進捗や次の質問を取得する構造を改善しました。質問順序を明示的に扱い、回答順序の検証や一覧表示も見直しました。面接ドメインでは一時停止時間を集計し、経過時間から差し引く処理もあります。
+
+**結果:** 再開時に進捗状況を把握し、面接を継続するための情報を提供できるようにしました。
+
+**関連コード:** `Intv`, `IntvApplicationService`, `ResumeContextInfo`
+
+#### Case 4 — AI質問生成失敗時のFallback（commit `88e0ae9`）
+
+**課題:** 外部AIサーバーへの質問生成依頼に失敗すると、面接を開始できなくなる可能性がありました。
+
+**対応:** 依頼時に例外が発生した場合、AIカスタム質問を0件として共通質問から質問セットを構成する代替フローを追加しました。既存セットの重複生成を防ぐチェックも追加しました。
+
+**結果:** AI依頼の失敗時にも、登録済みの共通質問を利用して面接用質問を構成できるようにしました。※必要数の共通質問データが登録されていることが前提です。
+
+**関連コード:** `QuestionSetApplicationService`
+
+#### Case 5 — 回答動画のS3保存先整理（PR #32）
+
+**課題:** 質問ID単位のパスでは、同じ面接の複数動画が分散し、管理しにくい状態でした。
+
+**対応:** クライアントAPIが受け取る`questionSetId`は維持し、サーバー内で`intvId`を取得して保存先を変更しました。
 
 ```text
-READY -> IN_PROGRESS -> PAUSED -> IN_PROGRESS -> FINISHED
+Before: answers/{questionSetId}/video/{uuid}-{fileName}
+After : answers/{intvId}/{uuid}-{fileName}
 ```
 
-面接終了時には `InterviewFinishedEvent` を発行します。Report モジュールはこのイベントを受け取り、レポート生成条件を確認します。
+**結果:** フロントエンドのAPI契約を変更せず、面接単位でファイルを確認しやすい構造にしました。
 
-### Preparation
+### 6. チーム開発・テスト
 
-面接作成時に `Preparation` も同時に作成されます。ユーザーは履歴書、ポートフォリオ、自己紹介書をアップロードできます。
+機能ごとのブランチ、Pull Request、レビューを通じてチームメンバーと連携しました。担当モジュール以外にも既存コードを調査し、APIの接続部分や状態の受け渡しを調整しました。
 
-アップロードは次の流れで処理します。
+`AnswerAnalysisDispatchServiceTest`、`FeedbackWebhookServiceTest`、`FeedbackCallbackProcessingTransactionServiceTest`、`IntvApplicationServiceTest`などのテストコードがリポジトリに含まれています。ここでは**テストコードの存在と実装範囲**を紹介しており、現時点のテスト成功率や性能改善率を主張するものではありません。
+
+### 7. 関連リポジトリ
+
+- [個人Fork（このリポジトリ）](https://github.com/Hojun-lang/gamyeon-spring-backend)
+- [チーム開発元 — Spring Backend](https://github.com/team-gamyeon/gamyeon-spring-backend)
+
+他の担当者が実装したFrontend / Python AI Server / Backofficeのリンクは、公開範囲を確認してから追加します。
+
+### 8. 今後の改善案
+
+- 外部AI連携の異常系・並行リクエストに関するテスト拡充
+- Callback APIの認証・アクセス制御の点検
+- レポート生成リクエストの重複防止に関する検証
+- ログ・監視と障害復旧手順の文書化
+- APIドキュメントとサービス画面の追加
+
+※これらは**今後の課題**であり、実装済みの機能として紹介していません。
+
+---
+
+<a id="korean-version"></a>
+
+## 🇰🇷 한국어 버전
+
+[日本語版に戻る / 일본어 버전으로 돌아가기](#japanese-version)
+
+### 소개
+
+**Gamyeon**은 이력서·포트폴리오·자기소개서를 기반으로 AI 면접 질문 생성, 답변 분석, 질문별 피드백, 종합 리포트를 제공하는 모의면접 웹 서비스입니다.
+
+이 서비스는 **여러 팀원이 공동 개발**했습니다. 저는 **Spring Boot 백엔드 팀의 일원**으로 면접 진행 관리, 답변 데이터 처리, AI 서버 연동, 기존 콜백 처리 구조 개선 등을 담당했습니다.
+
+> **이 저장소에 대해**  
+> 팀이 개발한 Spring Boot 백엔드를 Fork한 개인 개발 실적 소개용 저장소입니다. 아래에서는 **서비스 전체 기능·기술**과 **제가 직접 구현·개선한 부분**을 구분합니다. Python AI 서버, 프론트엔드, 백오피스뿐 아니라 Spring 백엔드 일부 기능도 다른 팀원이 담당했습니다. 기존 PR은 한국어로 작성되었으며, 위 일본어 섹션에는 해당 변경 내용을 일본어로 요약했습니다.
+
+### 1. 프로젝트 개요
+
+| 항목 | 내용 |
+|---|---|
+| 개발 형태 | 팀 프로젝트 |
+| 대상 저장소 | Spring Boot 백엔드 |
+| 개인 담당 | 면접·질문·답변·준비자료 관련 API, AI 연동 개선, 콜백 리팩토링, 회원 탈퇴·복구 기능 등 |
+| 주요 목적 | 모의면접과 AI 기반 면접 피드백 제공 |
+
+**주요 기능(서비스 전체)**
+
+| 기능 | 개요 |
+|---|---|
+| 사용자 인증 | OAuth2 로그인 및 JWT 인증 |
+| 면접 준비 | 이력서 등 준비자료 S3 업로드 |
+| 질문 생성 | AI 맞춤 질문 최대 4개와 공통 질문을 조합해 기본 7문항 구성 |
+| 모의면접 | 답변 영상 등록, 일시정지·재개, 진행 상황 관리 |
+| 답변 분석 | Python AI 서버에 STT 등 분석 의뢰 및 결과 수신 |
+| 피드백 | 질문별 평가 결과 저장 |
+| 종합 리포트 | 면접 평가 집계 및 조회 |
+| 계정 관리 | 탈퇴·유예기간 내 복구 및 기간 경과 후 삭제 |
+
+<!-- TODO: 공개 가능 여부를 확인한 서비스 화면 추가 -->
+
+### 2. 시스템 구성
 
 ```text
-1. クライアントが presigned URL をリクエスト
-2. サーバーがファイル種別、拡張子、サイズを検証
-3. サーバーが S3 file key と presigned URL を返却
-4. クライアントが S3 に直接アップロード
-5. クライアントがアップロード完了後、ファイルメタデータをサーバーへ登録
+             Frontend / Backoffice
+                       |
+                    REST API
+                       |
+             Spring Boot Backend
+             /         |         \
+        OAuth/JWT    면접/API     S3 Presigned URL
+                       |                 |
+                  외부 AI 연동          AWS S3
+                       |
+                Python AI Server
+                       |
+                  비동기 Callback
+                       |
+             Spring Boot Backend
+                       |
+                   PostgreSQL
 ```
 
-必須資料である履歴書が登録されると、Preparation は `READY` 状態になります。
+이 그림은 서비스 전체의 개념적 구성도이며, Python AI 처리 자체는 제 담당이 아니었습니다.
 
-### Question
+Spring 백엔드는 도메인별로 모듈을 나누고, **일부 모듈에 Port / Adapter 패턴**을 적용해 외부 의존성을 분리했습니다. 모든 모듈이 동일한 구조는 아니므로 완전한 헥사고날 아키텍처라고 주장하지 않습니다.
 
-質問生成は AI サーバーへの非同期依頼として開始されます。AI サーバーが失敗した場合でも、共通質問を利用して最低限の質問セットを構成できる fallback フローを持っています。
+- **Domain:** 상태와 비즈니스 규칙
+- **Application:** 유스케이스와 비즈니스 처리 조정
+- **Port:** DB 및 외부 API 의존성 추상화
+- **Adapter / Infrastructure:** JPA, Web, Feign, S3 구현
 
-質問セットは基本的に合計 7 問を目標に構成されます。
+### 3. 기술 스택(프로젝트 전체)
 
-- AI カスタム質問: 最大 4 問
-- 共通質問: 残りの質問数
+| 분류 | 기술 |
+|---|---|
+| 언어 / 프레임워크 | Java 17, Spring Boot 3.5.11 |
+| DB / ORM | PostgreSQL, Spring Data JPA, Hibernate |
+| 인증 | Spring Security, OAuth2, JWT |
+| AI 연동 | OpenFeign, Callback, Job / Scheduler |
+| 저장소 | AWS S3, Presigned URL |
+| 테스트 | JUnit 5, Mockito, Spring Boot Test |
+| 빌드 / 배포 | Gradle, Docker, AWS EC2 |
+| 협업 | Git, GitHub, Pull Request |
 
-### Answer
+※ 팀 전체 기술 스택이며, **OAuth/JWT 인증 기반, AI 리포트 생성 로직, CI/CD를 제가 단독 구현했다는 뜻이 아닙니다.**
 
-回答動画は S3 に保存され、DB には file key、file URL、content type、size、STT status などのメタデータを保存します。
+### 4. 나의 구현·개선 실적
 
-回答の状態は次のように遷移します。
+**주요 담당 업무**
+
+- 면접 생성·진행 상태·일시정지·재개, 답변 진도와 다음 질문 조회 관련 기능 구현·개선
+- 준비자료 등록 및 업로드 API, 질문 생성 요청과 질문 세트 관리 구현·개선
+- AI 답변 분석 요청을 Job으로 관리하고 스케줄러를 통해 전송·재시도·장기 정체 Job 복구
+- **기존 Feedback 기능을 바탕으로** 콜백 접수와 저장 처리 분리, 멱등성 강화
+- S3 답변 영상의 저장 키 구조 개선
+- **기존 인증 기반에 기능을 추가하는 방식으로** 회원 탈퇴·유예기간·복구·기간 경과 후 삭제 구현
+- 면접 목록용 **리포트 요약 조회** 개선(AI 리포트 생성 자체는 담당하지 않음)
+
+**주요 PR·커밋(본인 변경 이력)**
+
+| 기록 | 대상 | 주요 변경 내용 |
+|---|---|---|
+| [PR #14](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/14) | Answer | `AnswerAnalysisJob` 도입, 분석 요청 전송·재시도, 스케줄러, 장기 정체 Job 복구, 관련 테스트 |
+| [PR #17](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/17) | Feedback | 기존 콜백 처리의 Job 기반 리팩토링, 중복 접수 방지, 제한적 재시도, 관련 테스트 |
+| [PR #29](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/29) | Interview | 일시정지·재개, 진행도·다음 질문 조회, 질문 순서, 목록 및 리포트 요약 조회 개선 |
+| [PR #32](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/32) | Answer / S3 | 답변 영상 저장 경로를 `questionSetId` 기준에서 `intvId` 기준으로 변경 |
+| [PR #41](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/41) | User | 탈퇴, 7일 복구 유예기간, 계정 복구, 기간 경과 후 데이터 삭제 |
+| [커밋 `88e0ae9`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/88e0ae97) | Question | AI 질문 생성 요청 실패 시 공통 질문 Fallback 및 질문 세트 중복 생성 방지 |
+| [커밋 `b1cf305`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/b1cf305) / [커밋 `8afaf4c`](https://github.com/team-gamyeon/gamyeon-spring-backend/commit/8afaf4c4) | Preparation | 준비자료 업로드·등록 API 및 복수 자료 등록 처리 |
+
+※ 각 PR에는 협업 과정에서 수정한 파일도 포함됩니다. **표는 확인된 본인 변경 내용을 요약한 것**이며, 관련 모듈 전체를 단독 개발했다는 의미가 아닙니다.
+
+### 5. 기술적 문제와 개선 사례
+
+#### Case 1 — 답변 분석 요청 Job화와 재시도(PR #14)
+
+**문제:** 답변의 분석 결과 상태와 AI 서버에 요청을 보내는 상태를 함께 관리하면, 통신 실패나 처리 중단 후 복구가 어려워집니다.
+
+**대응:** `AnswerAnalysisJob`을 도입해 요청 전송 상태, 재시도 횟수, 다음 재시도 시각, 오류 정보를 관리했습니다. 전송과 DB 트랜잭션 처리를 분리하고, 스케줄러가 미전송 Job을 처리하도록 개선했습니다.
+
+Feign 재시도 가능 예외와 HTTP **429 / 5xx** 등을 재시도 대상으로 분류하고, 오래 `SENDING` 상태인 Job을 복구하도록 했습니다. **모든 오류를 무조건 재시도하지는 않습니다.**
+
+**결과:** 답변 분석 결과와 외부 요청 전송의 책임을 분리하고, 실패 시 재시도·복구 상태를 추적할 수 있게 했습니다.
+
+**관련 코드:** `AnswerAnalysisJob`, `AnswerAnalysisDispatchService`, `AnswerAnalysisDispatchTransactionService`, `AnswerAnalysisScheduler`
+
+#### Case 2 — Feedback Callback 중복 방지 및 복구(PR #17)
+
+**문제:** AI 서버가 같은 콜백을 재전송할 경우 동일 질문에 대한 피드백이 중복 저장될 가능성이 있습니다. 기존 Feedback 기능을 개선해 중복 및 동시 요청에 대응할 필요가 있었습니다.
+
+**대응:**
+
+1. `requestId`, `questionSetId`로 기존 Job을 조회하고 DB Unique 제약으로 중복 등록 방어
+2. 콜백 내용을 먼저 `FeedbackCallbackJob`에 저장해 접수와 실제 처리 분리
+3. 스케줄러의 Job 조회에 비관적 잠금 사용
+4. 피드백 저장 시에도 기존 데이터 조회 및 `questionSetId` Unique 제약 활용
+5. DB 잠금 실패 등 제한된 예외만 재시도하고 장시간 `PROCESSING` Job 복구
+6. 새로운 피드백이 실제 저장됐을 때만 후속 이벤트 발행
+
+**결과:** 재전송·동시 요청으로 인한 중복 저장에 여러 단계의 방어를 적용하고, 처리 상태와 오류 정보를 확인할 수 있도록 개선했습니다.
+
+**관련 코드:** `FeedbackWebhookService`, `FeedbackCallbackJob`, `FeedbackCallbackProcessingTransactionService`
+
+#### Case 3 — 면접 일시정지·재개와 진행 상황 복원(PR #29)
+
+**문제:** 면접 도중 중단 후 재개할 때 상태 변경뿐 아니라 완료한 질문, 다음 질문, 답변 순서를 일관되게 다뤄야 했습니다.
+
+**대응:** 상태 전이를 정리하고 `getResumeContext()`에서 답변 진행 상황과 다음 질문을 조회하도록 개선했습니다. 질문 순서를 명시적으로 관리하고 답변 순서 검증과 목록 조회도 보완했습니다. 면접 도메인에는 일시정지 시간을 누적해 실제 진행 시간에서 차감하는 처리도 존재합니다.
+
+**결과:** 다시 시작할 때 필요한 진행 정보와 다음 질문을 제공하는 구조를 마련했습니다.
+
+**관련 코드:** `Intv`, `IntvApplicationService`, `ResumeContextInfo`
+
+#### Case 4 — AI 질문 생성 실패 시 Fallback(커밋 `88e0ae9`)
+
+**문제:** 외부 AI 서버에 질문 생성을 요청하는 과정에서 오류가 발생하면 면접 진행이 막힐 수 있었습니다.
+
+**대응:** 요청 중 예외가 발생하면 AI 맞춤 질문을 0개로 취급하고, DB의 공통 질문으로 질문 세트를 구성하는 대체 흐름을 추가했습니다. 이미 생성된 질문 세트를 중복 생성하지 않도록 검사도 추가했습니다.
+
+**결과:** AI 요청 실패 시에도 등록된 공통 질문을 이용해 면접용 질문을 구성할 수 있도록 했습니다. ※ 필요한 수의 공통 질문이 DB에 등록되어 있어야 합니다.
+
+**관련 코드:** `QuestionSetApplicationService`
+
+#### Case 5 — S3 답변 영상 저장 경로 정리(PR #32)
+
+**문제:** 질문 ID를 기준으로 영상 경로를 만들면 하나의 면접에 속한 영상이 여러 위치에 분산돼 관리가 불편했습니다.
+
+**대응:** 클라이언트가 전달하는 `questionSetId`는 그대로 유지하고, 서버에서 `intvId`를 조회해 경로를 변경했습니다.
 
 ```text
-UPLOADED -> STT_PROCESSING -> STT_COMPLETED
-                         └-> STT_FAILED
+변경 전: answers/{questionSetId}/video/{uuid}-{fileName}
+변경 후: answers/{intvId}/{uuid}-{fileName}
 ```
 
-回答動画のアップロード先は、質問 ID 単位ではなく面接 ID 単位で管理できるように設計しています。
+**결과:** 기존 프론트엔드 API 계약을 유지하면서 면접 단위로 영상을 확인하기 쉽게 개선했습니다.
 
-```text
-answers/{intvId}/{uuid}-{originalFileName}
-```
+### 6. 협업 및 테스트
 
-この構造により、1 つの面接セッションに属する複数の回答動画を同じ S3 prefix 配下で確認できます。
+기능별 브랜치, Pull Request, 코드 리뷰를 통해 팀원과 협업했습니다. 담당 영역 외의 코드도 확인하며 API 연동과 상태 전달을 조정했습니다.
 
-### Feedback
+저장소에는 `AnswerAnalysisDispatchServiceTest`, `FeedbackWebhookServiceTest`, `FeedbackCallbackProcessingTransactionServiceTest`, `IntvApplicationServiceTest` 등의 테스트 코드가 포함되어 있습니다. 이 내용은 **테스트 코드의 존재와 범위에 관한 설명**이며, 현재 테스트 통과율이나 성능 개선 수치를 주장하는 것은 아닙니다.
 
-AI サーバーが質問別フィードバックを callback で送信すると、Feedback モジュールは `questionSetId` から `intvId` を取得し、フィードバック結果を保存します。
+### 7. 관련 저장소
 
-すでに完了済みの feedback callback は重複処理しないよう、冪等性チェックを行います。
+- [개인 Fork(현재 저장소)](https://github.com/Hojun-lang/gamyeon-spring-backend)
+- [팀 개발 원본 — Spring Backend](https://github.com/team-gamyeon/gamyeon-spring-backend)
 
-Feedback 保存後には `FeedbackSavedEvent` を発行し、Report モジュールがレポート生成可能かどうかを再確認します。
+다른 팀원이 담당한 Frontend / Python AI Server / Backoffice 저장소 링크는 공개 범위를 확인한 후 추가할 예정입니다.
 
-### Report
+### 8. 향후 개선 사항
 
-Report モジュールは次の 2 つのイベントを契機にレポート生成を試みます。
+- 외부 AI 연동의 예외 상황 및 동시 요청 테스트 확대
+- Callback API 인증·접근 제어 점검
+- 리포트 생성 요청 중복 방지 동작 검증
+- 로그·모니터링 및 장애 복구 절차 문서화
+- API 문서 및 실제 서비스 화면 추가
 
-- `InterviewFinishedEvent`
-- `FeedbackSavedEvent`
+※ 위 항목은 **향후 개선 과제**이며 이미 구현 완료한 기능으로 소개하지 않습니다.
 
-7 問すべてのフィードバックが成功すると、即座に AI レポート生成を依頼します。スケジューラートリガーでは、最小フィードバック数を基準に強制生成または失敗処理を行います。
+---
 
-AI サーバー callback で受け取った総合評価は `reports` テーブルに保存されます。
-
-## 主な API
-
-### Auth
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/api/v1/auth/login/{provider}` | OAuth ログイン |
-| `POST` | `/api/v1/auth/reissue` | トークン再発行 |
-| `POST` | `/api/v1/auth/logout` | ログアウト |
-
-### Interview
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/api/v1/intvs` | 面接作成 |
-| `PATCH` | `/api/v1/intvs/{intvId}` | 面接タイトル変更 |
-| `PATCH` | `/api/v1/intvs/{intvId}/start` | 面接開始 |
-| `PATCH` | `/api/v1/intvs/{intvId}/pause` | 面接一時停止 |
-| `PATCH` | `/api/v1/intvs/{intvId}/resume` | 面接再開 |
-| `PATCH` | `/api/v1/intvs/{intvId}/finish` | 面接終了 |
-| `GET` | `/api/v1/intvs/stats` | 完了面接の日別統計 |
-
-### Preparation
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/api/v1/preparations/{intvId}/files/presigned-url` | 準備資料アップロード URL 発行 |
-| `POST` | `/api/v1/preparations/{intvId}/files` | 準備資料メタデータ登録 |
-
-### Question
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/api/v1/intvs/{intvId}/questions` | AI 質問生成依頼 |
-| `GET` | `/api/v1/intvs/{intvId}/questions` | 質問一覧照会 |
-| `POST` | `/internal/v1/questions/callback` | AI 質問生成 callback |
-
-### Answer
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/api/v1/intvs/{questionSetId}/answers/presigned-url` | 回答動画アップロード URL 発行 |
-| `POST` | `/api/v1/intvs/{questionSetId}/answers` | 回答メタデータ登録 |
-| `POST` | `/api/v1/answers/{answerId}/analysis` | STT 分析依頼 |
-| `POST` | `/api/v1/intvs/{questionSetId}/gaze` | gaze segment 転送 |
-| `POST` | `/internal/v1/answers/stt/callback` | STT callback |
-
-### Feedback / Report
-
-| Method | Endpoint | 説明 |
-|---|---|---|
-| `POST` | `/internal/v1/feedbacks/callback` | 質問別 feedback callback |
-| `GET` | `/api/v1/report/list` | レポート一覧照会 |
-| `GET` | `/api/v1/report/detail/{intvId}` | レポート詳細照会 |
-| `DELETE` | `/api/v1/report/{intvId}` | レポート削除 |
-| `POST` | `/internal/v1/reports/callback` | レポート生成 callback |
-
-## 実行方法
-
-### 必要環境
-
-- Java 17
-- Docker
-- PostgreSQL
-- AWS S3 bucket
-- AI server URL
-
-### 環境変数
-
-`application.yml` は次の環境変数を使用します。
-
-```env
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/gamyeon
-SPRING_DATASOURCE_USERNAME=postgres
-SPRING_DATASOURCE_PASSWORD=password
-AWS_REGION=ap-northeast-2
-AI_SERVER_URL=http://localhost:8000
-```
-
-JWT secret、OAuth client 情報、S3 bucket 設定は、実行環境に合わせて別途設定する必要があります。
-
-### ローカル実行
-
-```bash
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
-
-### ビルド
-
-```bash
-./gradlew clean build
-```
-
-### フォーマット適用
-
-```bash
-./gradlew spotlessApply
-```
-
-### Docker 実行
-
-```bash
-./gradlew clean bootJar
-docker build -t gamyeon-spring .
-docker run -p 8080:8080 gamyeon-spring
-```
-
-## ポートフォリオで強調できる点
-
-### 1. AI サーバーとの非同期連携
-
-質問生成、STT 分析、フィードバック、レポート生成をすべて外部 AI サーバーと callback ベースで連携しています。Spring サーバーは各リクエストの状態を保存し、callback 結果に応じてドメイン状態を遷移させます。
-
-### 2. イベントベースのレポート生成
-
-面接終了とフィードバック保存をイベントとして分離しました。Report モジュールはイベントを購読して生成条件を判断するため、Interview / Feedback / Report の責務を疎結合に保てます。
-
-### 3. Presigned URL ベースのファイルアップロード
-
-大容量の PDF や動画ファイルを Spring サーバーが直接受け取らず、S3 presigned URL によってクライアントが直接アップロードする構成にしました。サーバーはメタデータとアクセス URL のみを管理します。
-
-### 4. ドメイン中心の状態管理
-
-`Intv`、`Preparation`、`Answer`、`Report` などのドメインオブジェクトが状態遷移メソッドを持つため、不正な状態変更を防ぎやすい構造になっています。
-
-### 5. Port ベースの依存分離
-
-application layer は repository、storage、AI client の具体実装を直接知らず、port interface に依存します。これにより、テストや外部インフラの差し替えがしやすくなっています。
-
-## Troubleshooting
-
-### 1. 回答動画が S3 で質問ごとのフォルダに分散する問題
-
-問題:
-
-回答動画の presigned URL を発行する際、最初は `questionSetId` を S3 key の path segment として利用していました。
-
-```text
-answers/{questionSetId}/video/{uuid}-{fileName}
-```
-
-この構造では、1 つの面接が 7 問で構成される場合、S3 bucket 上に質問ごとのフォルダが 7 個作成されます。そのため、運用時に「1 つの面接に属する回答動画」を一覧で確認しづらい問題がありました。
-
-解決:
-
-クライアント API は既存のまま `questionSetId` を受け取り、サーバー内部で `questionSetId` から `intvId` を取得する方式に変更しました。S3 key 生成時のみ `intvId` を利用します。
-
-```text
-answers/{intvId}/{uuid}-{fileName}
-```
-
-これにより、フロントエンドの API 契約を変更せずに、S3 上では面接単位で回答動画を管理できるようにしました。
-
-### 2. AI callback の重複処理問題
-
-問題:
-
-AI サーバーとの連携は callback ベースで行われます。ネットワーク再送や AI サーバー側の retry により、同じ質問に対する feedback callback が複数回届く可能性があります。
-
-単純に callback を受け取るたびに保存すると、同じ質問に対して複数の feedback が作成され、Report 生成条件や集計結果が不安定になります。
-
-解決:
-
-`FeedbackWebhookService` で `questionSetId` 基準の完了済み feedback が存在するか先に確認し、すでに処理済みの callback は無視するようにしました。
-
-```java
-boolean alreadyProcessed = feedbackPersistence.existsCompletedByQuestionSetId(questionSetId);
-if (alreadyProcessed) {
-    return;
-}
-```
-
-callback API は外部システムと接続される境界であるため、冪等性をアプリケーションレベルで保証するように設計しました。
-
-### 3. レポート生成タイミングの競合問題
-
-問題:
-
-レポート生成は `InterviewFinishedEvent` と `FeedbackSavedEvent` の両方を契機に実行されます。つまり、面接終了イベントと最後の feedback 保存イベントが近いタイミングで発生すると、同じ面接に対して report 生成リクエストが重複実行される可能性があります。
-
-解決:
-
-`ReportGenerateService` では `findByIntvIdWithLock` を使い、Report row に pessimistic write lock を取得してから状態を確認します。
-
-```java
-Report report = loadReportPort.findByIntvIdWithLock(intvId).orElseGet(...);
-if (report.getStatus() != ReportStatus.IN_PROGRESS) {
-    return;
-}
-```
-
-これにより、複数イベントが同時に到達しても 1 つの transaction だけが report を処理し、すでに処理済みの report は即時に return するようにしました。
-
-### 4. AI レポート callback の JSONB 保存問題
-
-問題:
-
-AI サーバーから受け取る report 詳細データはネストされた JSON 構造です。これを Hibernate JSONB カラムに DTO オブジェクトのまま保存しようとすると、型変換の過程で例外が発生したり、DB カラムと JSONB 内部の値がずれたりする可能性があります。
-
-解決:
-
-`ReportCallbackService` では callback DTO を `ObjectMapper.convertValue` で `Map<String, Object>` に変換した後、同じ Map から `total_score`, `answered_count` を抽出するようにしました。
-
-```java
-Map<String, Object> reportDataMap = objectMapper.convertValue(detail, Map.class);
-```
-
-これにより、JSONB に保存されるデータと別カラムに保存される要約値の source を 1 つに統一しました。
-
-### 5. AI 質問生成に失敗すると面接進行が止まる問題
-
-問題:
-
-質問生成は外部 AI サーバーに依存します。AI サーバーが応答しない、またはエラーを返すと、ユーザーは質問を受け取れず面接を進められません。
-
-解決:
-
-`QuestionSetApplicationService` では AI 質問生成リクエストが失敗すると `status = "FAIL"` として質問生成ロジックを呼び出し、カスタム質問は 0 件として扱います。その後、共通質問 repository から必要な件数の質問を取得し、質問セットを構成します。
-
-この fallback により、AI カスタム質問生成に失敗しても面接自体は進行できます。
-
-### 6. 大容量ファイルアップロード時のサーバー負荷問題
-
-問題:
-
-履歴書 PDF や回答動画を Spring サーバーが直接 multipart で受け取ると、サーバーメモリ使用量とネットワーク負荷が大きくなります。特に回答動画はサイズが大きくなりやすいため、API サーバーがファイル転送のボトルネックになる可能性があります。
-
-解決:
-
-ファイルアップロードは S3 presigned URL ベースで設計しました。サーバーはファイル拡張子、content type、size を検証し、presigned URL と file key のみを発行します。実際のファイル body はクライアントが S3 に直接アップロードします。
-
-これにより、Spring サーバーはファイルデータではなく metadata のみを管理するようになり、アップロード負荷を下げつつ storage の責務を S3 に分離しました。
-
-## 今後の改善案
-
-- 質問順序カラムを明示的に保存し、面接再開位置の計算を安定化する
-- 回答重複防止を DB unique constraint で補強する
-- STT 分析 job queue と retry 状態を別テーブルで管理する
-- 内部 callback API に API key または signature 検証を追加する
-- Report 生成失敗理由をユーザーに表示できるよう、エラー情報を詳細化する
-- OpenAPI ドキュメントを自動生成する
+*본 README는 팀 전체의 개발 내용과 개인의 구현·개선 이력을 구분해 정리한 포트폴리오 문서입니다.*
