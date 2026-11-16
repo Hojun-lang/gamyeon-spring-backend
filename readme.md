@@ -43,7 +43,79 @@
 | 総合レポート | 面接結果の集約・閲覧 |
 | アカウント管理 | 退会・一定期間内の復旧、期限経過後の削除 |
 
-<!-- TODO: 公開許可を確認した実際のサービス画面を追加 -->
+
+### サービス画面
+
+以下は、実際に公開したGamyeonサービスの利用画面です。
+面接準備からAIによる分析レポートの確認まで、一連の流れを紹介します。
+
+※画面はチーム全体で開発したサービスのものです。
+各画面に関連する私のバックエンド担当箇所も記載しています。
+
+#### 1. 面接準備資料のアップロード
+
+<img width="1470" height="956" alt="Pasted Graphic 11" src="https://github.com/user-attachments/assets/eaf1030c-715e-4da8-89e1-39dda2544dd6" />
+
+履歴書やポートフォリオなどの面接準備資料を登録する画面です。
+
+私はSpring Boot側で、S3 Presigned URLの発行とファイル情報の登録APIを実装しました。
+
+**担当領域：** Preparation / AWS S3
+
+---
+
+#### 2. AI面接の質問・回答
+
+<img width="1470" height="952" alt="Pasted Graphic 17" src="https://github.com/user-attachments/assets/e159e4f2-c814-46a5-b5b5-89f66fbb54a4" />
+
+AIが生成した質問を確認し、動画で回答する画面です。
+
+私は質問生成依頼API、質問セット管理、回答データの登録処理などを担当しました。また、AIへの質問生成依頼に失敗した場合、共通質問を利用するFallback処理も実装しました。
+
+**担当領域：** Question / Answer
+
+---
+
+#### 3. 回答データの登録とAI分析連携
+
+<img width="1470" height="956" alt="Pasted Graphic 18" src="https://github.com/user-attachments/assets/bba24c50-c4ec-4130-9837-abad8cb2bfb8" />
+
+回答動画を登録した後、バックエンドからAIサーバーへ分析を依頼する処理につながります。
+
+私は`AnswerAnalysisJob`を導入し、分析依頼の送信状態、再試行、滞留Jobの復旧を管理できるように改善しました。
+
+**担当領域：** Answer / 非同期処理
+
+**関連PR：** [#14 — 回答分析処理の改善](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/14)
+
+---
+
+#### 4. 面接終了・分析待機
+
+<img width="1470" height="956" alt="Pasted Graphic 19" src="https://github.com/user-attachments/assets/e860a7de-10d7-471c-8de6-0e862e2faa3d" />
+
+すべての質問への回答を終えた後、AIによる分析結果を待つ画面です。
+
+私は面接の進行状態管理と終了処理を実装・改善しました。面接終了後のAIレポート生成処理は、他のチームメンバーが担当しました。
+
+**担当領域：** Interview / 状態管理
+
+---
+
+#### 5. AI面接分析レポート
+
+<img width="1470" height="723" alt="Pasted Graphic 23" src="https://github.com/user-attachments/assets/c83c118d-58f8-47e1-9d18-138e693d93b6" />
+
+面接終了後、AIが生成した総合評価や改善点を確認できる画面です。
+
+レポート生成ロジックは他のチームメンバーが担当しました。私は面接一覧からレポートの要約情報を取得する処理の改善に携わりました。
+
+**担当領域：** 面接一覧向けレポート要約照会
+
+**関連PR：** [#29 — 面接進行・一覧表示の改善](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/29)
+
+---
+
 
 ### 2. システム構成
 
@@ -181,28 +253,40 @@ After : answers/{intvId}/{uuid}-{fileName}
 
 **結果:** フロントエンドのAPI契約を変更せず、面接単位でファイルを確認しやすい構造にしました。
 
-### 6. チーム開発・テスト
+### 6. チーム開発, 協力
 
-機能ごとのブランチ、Pull Request、レビューを通じてチームメンバーと連携しました。担当モジュール以外にも既存コードを調査し、APIの接続部分や状態の受け渡しを調整しました。
+機能ごとのブランチ、Notion, Slack, Pull Request、レビューを通じてチームメンバーと連携しました。担当モジュール以外にも既存コードを調査し、APIの接続部分や状態の受け渡しを調整しました。
+詳細なドキュメントの整備と積極的なコミュニケーションを通じて、チーム内の認識共有を図り、円滑な共同開発に努めました。
 
-`AnswerAnalysisDispatchServiceTest`、`FeedbackWebhookServiceTest`、`FeedbackCallbackProcessingTransactionServiceTest`、`IntvApplicationServiceTest`などのテストコードがリポジトリに含まれています。ここでは**テストコードの存在と実装範囲**を紹介しており、現時点のテスト成功率や性能改善率を主張するものではありません。
+**API仕様書（Notion）**
+
+<img width="1470" height="848" alt="Pasted Graphic 28" src="https://github.com/user-attachments/assets/9b760374-e9b1-4736-8c8d-c933d723afaf" />
+
+[API仕様書を見る](https://flossy-jasper-003.notion.site/API-a843e846003c82889c558162e08d5a72)
+
+<img width="1468" height="719" alt="가면 ver2" src="https://github.com/user-attachments/assets/90f9548f-1ac6-4338-8352-b8848569616a" />
+チームNotion
 
 ### 7. 関連リポジトリ
 
-- [個人Fork（このリポジトリ）](https://github.com/Hojun-lang/gamyeon-spring-backend)
-- [チーム開発元 — Spring Backend](https://github.com/team-gamyeon/gamyeon-spring-backend)
+本プロジェクトは、複数のチームが連携して開発したAI模擬面接プラットフォームです。
 
-他の担当者が実装したFrontend / Python AI Server / Backofficeのリンクは、公開範囲を確認してから追加します。
+| 領域 | リポジトリ |
+|---|---|
+| Spring Boot Backend（個人Fork） | [Hojun-lang/gamyeon-spring-backend](https://github.com/Hojun-lang/gamyeon-spring-backend) |
+| Spring Boot Backend（チーム開発元） | [team-gamyeon/gamyeon-spring-backend](https://github.com/team-gamyeon/gamyeon-spring-backend) |
+| AI Server | [team-gamyeon/gamyeon-AI](https://github.com/team-gamyeon/gamyeon-AI) |
+| Frontend（Next.js） | [team-gamyeon/gamyeon-nextjs-frontend](https://github.com/team-gamyeon/gamyeon-nextjs-frontend) |
+| Backoffice（Next.js） | [team-gamyeon/gamyeon-nextjs-backoffice](https://github.com/team-gamyeon/gamyeon-nextjs-backoffice) |
+| Backoffice Backend（NestJS） | [team-gamyeon/gamyeon-nestjs-backoffice](https://github.com/team-gamyeon/gamyeon-nestjs-backoffice) |
 
-### 8. 今後の改善案
+**担当範囲について**
 
-- 外部AI連携の異常系・並行リクエストに関するテスト拡充
-- Callback APIの認証・アクセス制御の点検
-- レポート生成リクエストの重複防止に関する検証
-- ログ・監視と障害復旧手順の文書化
-- APIドキュメントとサービス画面の追加
+私の主な担当はSpring Bootバックエンドの開発です。
 
-※これらは**今後の課題**であり、実装済みの機能として紹介していません。
+AIサーバー、フロントエンド、バックオフィスの開発にも、ペアプログラミングや仕様調整、技術的な意見交換などを通じて協力しましたが、これらの領域における実装の中心は他のチームメンバーが担当しました。
+
+本READMEでは、チーム全体の成果と私自身の実装・改善実績を区別して紹介しています。
 
 ---
 
@@ -243,7 +327,79 @@ After : answers/{intvId}/{uuid}-{fileName}
 | 종합 리포트 | 면접 평가 집계 및 조회 |
 | 계정 관리 | 탈퇴·유예기간 내 복구 및 기간 경과 후 삭제 |
 
-<!-- TODO: 공개 가능 여부를 확인한 서비스 화면 추가 -->
+
+### 서비스 화면
+
+아래는 실제 배포한 Gamyeon 서비스의 이용 화면입니다.
+면접 준비부터 AI 분석 리포트 확인까지의 전체 과정을 소개합니다.
+
+※ 화면은 팀 전체가 공동 개발한 서비스의 결과물입니다.
+각 화면과 관련된 저의 백엔드 담당 업무도 함께 설명합니다.
+
+#### 1. 면접 준비자료 업로드
+
+<img width="1470" height="956" alt="Pasted Graphic 12" src="https://github.com/user-attachments/assets/b7eb4487-652c-4e20-b4f6-e5849732d344" />
+
+이력서와 포트폴리오 등 면접 준비자료를 등록하는 화면입니다.
+
+저는 Spring Boot에서 S3 Presigned URL 발급과 파일 정보 등록 API를 구현했습니다.
+
+**담당 영역:** Preparation / AWS S3
+
+---
+
+#### 2. AI 면접 질문 및 답변
+
+<img width="1470" height="952" alt="Pasted Graphic 17" src="https://github.com/user-attachments/assets/3827a61e-27f4-4d7f-bc87-b7ae531a9538" />
+
+AI가 생성한 질문을 확인하고 영상으로 답변하는 화면입니다.
+
+저는 질문 생성 요청 API, 질문 세트 관리, 답변 데이터 등록 처리 등을 담당했습니다. 또한 AI 질문 생성 요청이 실패할 경우 공통 질문을 활용하는 Fallback 처리도 구현했습니다.
+
+**담당 영역:** Question / Answer
+
+---
+
+#### 3. 답변 데이터 등록 및 AI 분석 연동
+
+<img width="1470" height="956" alt="Pasted Graphic 18" src="https://github.com/user-attachments/assets/f1572dac-62aa-42b9-b774-9037ced4511a" />
+
+답변 영상을 등록한 후 백엔드에서 AI 서버로 분석을 요청하는 과정과 연결되는 화면입니다.
+
+저는 `AnswerAnalysisJob`을 도입하여 분석 요청의 전송 상태, 재시도, 장기 정체 Job 복구를 관리하도록 개선했습니다.
+
+**담당 영역:** Answer / 비동기 처리
+
+**관련 PR:** [#14 — 답변 분석 처리 개선](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/14)
+
+---
+
+#### 4. 면접 완료 및 분석 대기
+
+<img width="1470" height="956" alt="Pasted Graphic 19" src="https://github.com/user-attachments/assets/ff57b93a-10a4-40a3-98e3-bbfb4ba4bc68" />
+
+모든 질문에 대한 답변을 마친 뒤 AI 분석 결과를 기다리는 화면입니다.
+
+저는 면접 진행 상태 관리와 종료 처리를 구현·개선했습니다. 면접 종료 후 AI 리포트 생성 처리는 다른 팀원이 담당했습니다.
+
+**담당 영역:** Interview / 상태 관리
+
+---
+
+#### 5. AI 면접 분석 리포트
+
+<img width="1470" height="723" alt="Pasted Graphic 23" src="https://github.com/user-attachments/assets/04f7dc5d-a15f-4443-bd74-5895e69a0bc1" />
+
+면접 종료 후 AI가 생성한 종합 평가와 개선점을 확인할 수 있는 화면입니다.
+
+리포트 생성 로직은 다른 팀원이 담당했습니다. 저는 면접 목록에서 리포트의 요약 정보를 조회하는 처리의 개선에 참여했습니다.
+
+**담당 영역:** 면접 목록용 리포트 요약 조회
+
+**관련 PR:** [#29 — 면접 진행 및 목록 조회 개선](https://github.com/team-gamyeon/gamyeon-spring-backend/pull/29)
+
+---
+
 
 ### 2. 시스템 구성
 
@@ -381,28 +537,38 @@ Feign 재시도 가능 예외와 HTTP **429 / 5xx** 등을 재시도 대상으�
 
 **결과:** 기존 프론트엔드 API 계약을 유지하면서 면접 단위로 영상을 확인하기 쉽게 개선했습니다.
 
-### 6. 협업 및 테스트
+### 6. 협업
 
-기능별 브랜치, Pull Request, 코드 리뷰를 통해 팀원과 협업했습니다. 담당 영역 외의 코드도 확인하며 API 연동과 상태 전달을 조정했습니다.
+기능별 브랜치, Notion, Slack, Pull Request, 코드 리뷰를 통해 팀원과 협업했습니다. 담당 영역 외의 코드도 확인하며 API 연동과 상태 전달을 조정했습니다.
 
-저장소에는 `AnswerAnalysisDispatchServiceTest`, `FeedbackWebhookServiceTest`, `FeedbackCallbackProcessingTransactionServiceTest`, `IntvApplicationServiceTest` 등의 테스트 코드가 포함되어 있습니다. 이 내용은 **테스트 코드의 존재와 범위에 관한 설명**이며, 현재 테스트 통과율이나 성능 개선 수치를 주장하는 것은 아닙니다.
+**API 명세서(Notion)**
+<img width="1470" height="848" alt="Pasted Graphic 28" src="https://github.com/user-attachments/assets/8a01ab93-969c-417b-af7b-9e41f5790790" />
+
+[API 명세서 확인하기](https://flossy-jasper-003.notion.site/API-a843e846003c82889c558162e08d5a72)
+
+<img width="1468" height="719" alt="가면 ver2" src="https://github.com/user-attachments/assets/793be659-ad2e-4bac-9951-907e8e3ccbfb" />
+팀 노션
 
 ### 7. 관련 저장소
 
-- [개인 Fork(현재 저장소)](https://github.com/Hojun-lang/gamyeon-spring-backend)
-- [팀 개발 원본 — Spring Backend](https://github.com/team-gamyeon/gamyeon-spring-backend)
+본 프로젝트는 여러 팀이 협력하여 개발한 AI 모의면접 플랫폼입니다.
 
-다른 팀원이 담당한 Frontend / Python AI Server / Backoffice 저장소 링크는 공개 범위를 확인한 후 추가할 예정입니다.
+| 영역 | 저장소 |
+|---|---|
+| Spring Boot Backend (개인 Fork) | [Hojun-lang/gamyeon-spring-backend](https://github.com/Hojun-lang/gamyeon-spring-backend) |
+| Spring Boot Backend (팀 원본) | [team-gamyeon/gamyeon-spring-backend](https://github.com/team-gamyeon/gamyeon-spring-backend) |
+| AI Server | [team-gamyeon/gamyeon-AI](https://github.com/team-gamyeon/gamyeon-AI) |
+| Frontend (Next.js) | [team-gamyeon/gamyeon-nextjs-frontend](https://github.com/team-gamyeon/gamyeon-nextjs-frontend) |
+| Backoffice (Next.js) | [team-gamyeon/gamyeon-nextjs-backoffice](https://github.com/team-gamyeon/gamyeon-nextjs-backoffice) |
+| Backoffice Backend (NestJS) | [team-gamyeon/gamyeon-nestjs-backoffice](https://github.com/team-gamyeon/gamyeon-nestjs-backoffice) |
 
-### 8. 향후 개선 사항
+**담당 범위에 대하여**
 
-- 외부 AI 연동의 예외 상황 및 동시 요청 테스트 확대
-- Callback API 인증·접근 제어 점검
-- 리포트 생성 요청 중복 방지 동작 검증
-- 로그·모니터링 및 장애 복구 절차 문서화
-- API 문서 및 실제 서비스 화면 추가
+저의 주요 담당 영역은 Spring Boot 백엔드 개발입니다.
 
-※ 위 항목은 **향후 개선 과제**이며 이미 구현 완료한 기능으로 소개하지 않습니다.
+AI 서버, 프론트엔드, 백오피스 개발 과정에서도 페어 프로그래밍, 기능 명세 조율, 기술적 의견 교환 등을 통해 협업했으나, 해당 영역의 실질적인 구현은 다른 팀원들이 주도적으로 담당했습니다.
+
+본 README에서는 팀 전체의 개발 성과와 제가 직접 구현·개선한 내용을 구분하여 소개합니다.
 
 ---
 
