@@ -6,7 +6,6 @@ import com.gamyeon.report.application.port.out.LoadReportPort;
 import com.gamyeon.report.application.port.out.SaveReportPort;
 import com.gamyeon.report.domain.Report;
 import com.gamyeon.report.domain.ReportStatus;
-import com.gamyeon.report.infrastructure.web.dto.ReportListResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -52,11 +51,6 @@ public class ReportPersistenceAdapter implements LoadReportPort, SaveReportPort 
     return repository.findAllByStatusAndCreatedAtBefore(status, threshold);
   }
 
-  @Override
-  public List<Report> findAllByUserId(Long userId) {
-    return repository.findAllByUserId(userId);
-  }
-
   // delete 구현
   @Override
   public void delete(Report report) {
@@ -64,35 +58,7 @@ public class ReportPersistenceAdapter implements LoadReportPort, SaveReportPort 
   }
 
   @Override
-  public List<ReportListResponse> findAllByUserIdWithInterviewInfo(Long userId) {
-    // 1. 레포지토리에서 Native Query 결과(Mapping 인터페이스) 가져오기
-    List<ReportListMapping> results = repository.findAllByUserIdWithInterviewInfo(userId);
-
-    // 2. Mapping 결과를 DTO로 변환하여 반환
-    return results.stream()
-        .map(
-            m -> {
-              // 리포트가 있는 경우에만 요약 정보 생성
-              ReportListResponse.ReportSummary summary = null;
-              if (m.getReportStatus() != null) {
-                summary =
-                    ReportListResponse.ReportSummary.builder()
-                        .reportId(m.getReportId())
-                        .reportStatus(m.getReportStatus())
-                        .totalScore(m.getTotalScore())
-                        .answeredCount(m.getAnsweredCount())
-                        .build();
-              }
-
-              return ReportListResponse.builder()
-                  .intvId(m.getIntvId())
-                  .intvTitle(m.getIntvTitle())
-                  .intvStatus(m.getIntvStatus())
-                  .durationMs(m.getDurationMs())
-                  .updatedAt(m.getUpdatedAt())
-                  .report(summary)
-                  .build();
-            })
-        .toList();
+  public List<Report> findAllByIntvIds(List<Long> intvIds) {
+    return repository.findAllByIntvIdIn(intvIds);
   }
 }

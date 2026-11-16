@@ -8,15 +8,24 @@ import com.gamyeon.user.application.port.outbound.UserRepository;
 import com.gamyeon.user.domain.User;
 import com.gamyeon.user.domain.UserDomainException;
 import com.gamyeon.user.domain.UserErrorCode;
+import java.time.Clock;
+import org.springframework.transaction.annotation.Transactional;
 
 public class UserService implements UserUseCase {
 
   private final UserRepository userRepository;
   private final RefreshTokenRepository refreshTokenRepository;
+  private final Clock clock;
 
   public UserService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository) {
+    this(userRepository, refreshTokenRepository, Clock.systemDefaultZone());
+  }
+
+  public UserService(
+      UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, Clock clock) {
     this.userRepository = userRepository;
     this.refreshTokenRepository = refreshTokenRepository;
+    this.clock = clock;
   }
 
   public UserInfo getMyInfo(Long userId) {
@@ -31,9 +40,10 @@ public class UserService implements UserUseCase {
     return UserInfo.from(user);
   }
 
+  @Transactional
   public void withdraw(Long userId) {
     User user = findActiveUser(userId);
-    user.withdraw();
+    user.withdraw(clock);
     userRepository.save(user);
     refreshTokenRepository.deleteByUserId(userId);
   }

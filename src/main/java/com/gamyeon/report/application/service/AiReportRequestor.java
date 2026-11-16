@@ -40,10 +40,10 @@ public class AiReportRequestor {
   public void requestToAi(Report report) {
     Long intvId = report.getIntvId();
 
-    // 1. 질문 목록 ID 순 정렬 로드
+    // 1. 질문 목록 순서 기준 정렬 로드
     List<QuestionSet> questions =
         loadQuestionSetPort.findAllByIntvId(intvId).stream()
-            .sorted(Comparator.comparing(QuestionSet::getId))
+            .sorted(Comparator.comparing(QuestionSet::getQuestionOrder))
             .toList();
 
     // 2. SUCCEED 피드백 수집

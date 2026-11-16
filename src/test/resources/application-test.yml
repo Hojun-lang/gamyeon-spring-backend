@@ -29,8 +29,8 @@ oauth:
 
 storage:
   s3:
-    bucket:
+    bucket: test-bucket-name
     region: ap-northeast-2
     presigned-duration-seconds: 900
-    access-key:
-    secret-key:
+    access-key: test-access-key-1234
+    secret-key: test-secret-key-5678

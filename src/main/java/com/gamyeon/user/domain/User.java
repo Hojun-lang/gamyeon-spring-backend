@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 
@@ -61,11 +62,23 @@ public class User extends BaseTimeEntity {
   }
 
   public void withdraw() {
+    withdraw(Clock.systemDefaultZone());
+  }
+
+  public void withdraw(Clock clock) {
     if (this.status == UserStatus.WITHDREW) {
       throw new UserDomainException(UserErrorCode.DEACTIVATED_USER);
     }
     this.status = UserStatus.WITHDREW;
-    this.withdrawnAt = LocalDateTime.now();
+    this.withdrawnAt = LocalDateTime.now(clock);
+  }
+
+  public void restore() {
+    if (this.status != UserStatus.WITHDREW || this.withdrawnAt == null) {
+      throw new UserDomainException(UserErrorCode.ACCOUNT_NOT_RESTORABLE);
+    }
+    this.status = UserStatus.ACTIVE;
+    this.withdrawnAt = null;
   }
 
   public void validateNickname(String nickname) {

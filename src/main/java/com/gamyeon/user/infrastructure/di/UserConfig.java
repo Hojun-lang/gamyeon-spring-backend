@@ -9,10 +9,13 @@ import com.gamyeon.user.application.port.outbound.UserRepository;
 import com.gamyeon.user.application.service.AuthService;
 import com.gamyeon.user.application.service.NicknameResolver;
 import com.gamyeon.user.application.service.UserService;
+import com.gamyeon.user.domain.AccountDeletionDeadlinePolicy;
 import com.gamyeon.user.infrastructure.external.OAuthAdapter;
 import com.gamyeon.user.infrastructure.external.OAuthProperties;
 import com.gamyeon.user.infrastructure.security.JwtProperties;
 import com.gamyeon.user.infrastructure.security.JwtProvider;
+import java.time.Clock;
+import java.time.ZoneId;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +36,22 @@ public class UserConfig {
   }
 
   @Bean
+  public ZoneId accountDeletionZoneId() {
+    return AccountDeletionDeadlinePolicy.DEFAULT_ZONE;
+  }
+
+  @Bean
+  public Clock accountClock(ZoneId accountDeletionZoneId) {
+    return Clock.system(accountDeletionZoneId);
+  }
+
+  @Bean
+  public AccountDeletionDeadlinePolicy accountDeletionDeadlinePolicy(
+      Clock accountClock, ZoneId accountDeletionZoneId) {
+    return new AccountDeletionDeadlinePolicy(accountClock, accountDeletionZoneId);
+  }
+
+  @Bean
   public WebClient webClient() {
     return WebClient.builder().build();
   }
@@ -48,14 +67,22 @@ public class UserConfig {
       RefreshTokenRepository refreshTokenRepository,
       OAuthPort oAuthPort,
       TokenPort tokenPort,
-      NicknameResolver nicknameResolver) {
+      NicknameResolver nicknameResolver,
+      AccountDeletionDeadlinePolicy deadlinePolicy) {
     return new AuthService(
-        userRepository, refreshTokenRepository, oAuthPort, tokenPort, nicknameResolver);
+        userRepository,
+        refreshTokenRepository,
+        oAuthPort,
+        tokenPort,
+        nicknameResolver,
+        deadlinePolicy);
   }
 
   @Bean
   public UserUseCase userUseCase(
-      UserRepository userRepository, RefreshTokenRepository refreshTokenRepository) {
-    return new UserService(userRepository, refreshTokenRepository);
+      UserRepository userRepository,
+      RefreshTokenRepository refreshTokenRepository,
+      Clock accountClock) {
+    return new UserService(userRepository, refreshTokenRepository, accountClock);
   }
 }

@@ -1,4 +1,3 @@
-// src/main/java/com/gamyeon/feedback/domain/event/FeedbackSavedEvent.java
 package com.gamyeon.feedback.domain.event;
 
 import com.gamyeon.feedback.domain.FeedbackStatus;

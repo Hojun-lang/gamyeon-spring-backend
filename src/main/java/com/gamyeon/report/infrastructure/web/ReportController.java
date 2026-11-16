@@ -4,10 +4,7 @@ import com.gamyeon.common.response.ApiResponse;
 import com.gamyeon.report.application.exception.ReportSuccessCode;
 import com.gamyeon.report.application.port.in.DeleteReportUseCase;
 import com.gamyeon.report.application.port.in.GetReportDetailUseCase;
-import com.gamyeon.report.application.port.in.GetReportListUseCase;
 import com.gamyeon.report.infrastructure.web.dto.ReportDetailResponse;
-import com.gamyeon.report.infrastructure.web.dto.ReportListResponse;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -20,18 +17,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ReportController {
 
-  private final GetReportListUseCase getReportListUseCase;
   private final GetReportDetailUseCase getReportDetailUseCase;
   private final DeleteReportUseCase deleteReportUseCase;
-
-  @GetMapping("/list")
-  public ResponseEntity<ApiResponse<List<ReportListResponse>>> getList(
-      @AuthenticationPrincipal Long userId // JWT 필터에서 세팅한 userId 직접 추출
-      ) {
-    log.info("[Report] 목록 조회 - userId={}", userId);
-    return ApiResponse.success(
-        ReportSuccessCode.REPORT_LIST_SUCCESS, getReportListUseCase.getList(userId));
-  }
 
   @GetMapping("/detail/{intvId}")
   public ResponseEntity<ApiResponse<ReportDetailResponse>> getDetail(
@@ -42,7 +29,7 @@ public class ReportController {
         ReportSuccessCode.REPORT_DETAIL_SUCCESS, getReportDetailUseCase.getDetail(intvId, userId));
   }
 
-  @DeleteMapping("/{intvId}")
+  @DeleteMapping("/delete/{intvId}")
   public ResponseEntity<ApiResponse<Void>> delete(
       @PathVariable Long intvId, @AuthenticationPrincipal Long userId // userId = 1L 하드코딩 제거
       ) {

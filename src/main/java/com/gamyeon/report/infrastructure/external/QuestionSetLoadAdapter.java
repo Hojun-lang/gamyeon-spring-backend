@@ -15,6 +15,6 @@ public class QuestionSetLoadAdapter implements LoadQuestionSetPort {
 
   @Override
   public List<QuestionSet> findAllByIntvId(Long intvId) {
-    return reportQuestionSetRepository.findAllByIntvId(intvId);
+    return reportQuestionSetRepository.findAllByIntvIdOrderByQuestionOrderAsc(intvId);
   }
 }

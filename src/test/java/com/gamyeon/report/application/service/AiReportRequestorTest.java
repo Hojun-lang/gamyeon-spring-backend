@@ -58,14 +58,14 @@ class AiReportRequestorTest {
   class RequestToAiSuccess {
 
     @Test
-    @DisplayName("질문 ID 오름차순으로 정렬되어 올바른 index와 questionContent가 AI 요청에 포함된다")
-    void shouldAssignCorrectIndicesAndContentBasedOnQuestionIdOrder() {
+    @DisplayName("질문 순서 기준으로 정렬되어 올바른 index와 questionContent가 AI 요청에 포함된다")
+    void shouldAssignCorrectIndicesAndContentBasedOnQuestionOrder() {
       // given
       Long intvId = 1L;
 
-      QuestionSet q1 = QuestionSet.create(intvId, "두 번째 질문입니다.");
-      QuestionSet q2 = QuestionSet.create(intvId, "첫 번째 질문입니다.");
-      QuestionSet q3 = QuestionSet.create(intvId, "세 번째 질문입니다.");
+      QuestionSet q1 = QuestionSet.create(intvId, "두 번째 질문입니다.", 2);
+      QuestionSet q2 = QuestionSet.create(intvId, "첫 번째 질문입니다.", 1);
+      QuestionSet q3 = QuestionSet.create(intvId, "세 번째 질문입니다.", 3);
       ReflectionTestUtils.setField(q1, "id", 102L);
       ReflectionTestUtils.setField(q2, "id", 101L);
       ReflectionTestUtils.setField(q3, "id", 103L);

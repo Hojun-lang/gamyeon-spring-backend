@@ -20,7 +20,7 @@ public class AiCallBackController {
   private final CreateQuestionSetUseCase createQuestionSetUseCase;
   private final QuestionSetRepositoryAdapter questionSetRepositoryAdapter;
 
-  @PostMapping("internal/v1/questions/callback")
+  @PostMapping("/internal/v1/questions/callback")
   public ResponseEntity<ApiResponse<Void>> callback(@RequestBody CallBackRequest callBack) {
     log.info(
         "Received question generation callback. intvId={}, status={}, questionCount={}",

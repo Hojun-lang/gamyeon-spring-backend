@@ -6,5 +6,7 @@ public interface AuthUseCase {
 
   LoginResult reissue(String refreshToken);
 
+  LoginResult restore(String restoreToken);
+
   void logout(Long userId);
 }

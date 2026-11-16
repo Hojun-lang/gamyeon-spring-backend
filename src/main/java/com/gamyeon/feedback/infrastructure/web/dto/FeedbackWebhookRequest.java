@@ -7,7 +7,7 @@ import java.util.List;
 
 public record FeedbackWebhookRequest(
     @JsonProperty("request_id") String requestId,
-    @NotNull @JsonProperty("intv_question_id") Long intvQuestionId, // = question_set_id
+    @NotNull @JsonProperty("intv_question_id") Long intvQuestionId,
     @NotNull String status,
 
     // ── LLM 산출 필드 (FAILED 시 null) ─────────────────────────────────

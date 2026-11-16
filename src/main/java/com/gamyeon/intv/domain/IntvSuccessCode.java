@@ -10,7 +10,9 @@ public enum IntvSuccessCode implements SuccessCode {
   INTV_RESUMED(HttpStatus.OK, "INTV-S004", "면접을 재개했습니다."),
   INTV_FINISHED(HttpStatus.OK, "INTV-S005", "면접을 종료했습니다."),
   INTV_UPDATED(HttpStatus.OK, "INTV-S006", "면접 제목을 수정했습니다."),
-  INTV_FINISHED_STATS_FETCHED(HttpStatus.OK, "INTV-S007", "완료된 면접 통계를 조회했습니다.");
+  INTV_FINISHED_STATS_FETCHED(HttpStatus.OK, "INTV-S007", "완료된 면접 통계를 조회했습니다."),
+  INTV_RESUME_CONTEXT_FETCHED(HttpStatus.OK, "INTV-S008", "면접 재개 정보를 조회했습니다."),
+  INTV_LIST_FETCHED(HttpStatus.OK, "INTV-S009", "면접 기록을 조회했습니다.");
 
   private final HttpStatus status;
   private final String code;

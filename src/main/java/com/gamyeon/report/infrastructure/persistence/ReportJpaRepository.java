@@ -28,27 +28,5 @@ public interface ReportJpaRepository extends JpaRepository<Report, Long> {
   List<Report> findAllByStatusAndCreatedAtBefore(
       @Param("status") ReportStatus status, @Param("threshold") LocalDateTime threshold);
 
-  // 목록 조회 — userId 기준
-  List<Report> findAllByUserId(Long userId);
-
-  @Query(
-      value =
-          """
-            SELECT
-                i.id AS "intvId",
-                i.title AS "intvTitle",
-                i.status AS "intvStatus",
-                i.duration_ms AS "durationMs",
-                i.updated_at AS "updatedAt",
-                r.id AS "reportId",
-                r.status AS "reportStatus",
-                r.total_score AS "totalScore",
-                r.answered_count AS "answeredCount"
-            FROM interviews i
-            LEFT JOIN reports r ON i.id = r.intv_id
-            WHERE i.user_id = :userId
-            ORDER BY i.created_at DESC
-            """,
-      nativeQuery = true)
-  List<ReportListMapping> findAllByUserIdWithInterviewInfo(@Param("userId") Long userId);
+  List<Report> findAllByIntvIdIn(List<Long> intvIds);
 }

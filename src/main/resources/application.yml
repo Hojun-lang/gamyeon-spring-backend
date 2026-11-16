@@ -59,7 +59,28 @@ cloud:
 jwt:
   access-token-expiry: 3600000
   refresh-token-expiry: 604800000
+  refresh-token-cleanup:
+    cron: "0 0 3 * * *"   # 매일 새벽 3시 만료 토큰 정리
+  restore-token-expiry: 600000
+
+user:
+  account-deletion:
+    cron: "0 0 0 * * *"
+    zone: "Asia/Seoul"
+    batch-size: 100
 
 ai:
   server:
     url: ${AI_SERVER_URL:http://agent-server:8000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  metrics:
+    tags:
+      application: gamyeon-spring
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true

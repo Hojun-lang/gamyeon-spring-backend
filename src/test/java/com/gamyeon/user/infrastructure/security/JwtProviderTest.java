@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.gamyeon.user.domain.OAuthProvider;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -95,6 +97,15 @@ class JwtProviderTest {
     String tokenFromOther = otherProvider.createAccessToken(1L);
 
     assertFalse(jwtProvider.validateToken(tokenFromOther), "다른 시크릿으로 서명된 토큰은 유효하지 않아야 합니다");
+  }
+
+  @Test
+  @DisplayName("복구 전용 토큰은 일반 API 인증에 사용할 수 없어야 한다")
+  void shouldRejectRestoreTokenForApiAuthentication() {
+    String token = jwtProvider.createRestoreToken(1L, OAuthProvider.GOOGLE);
+
+    assertThrows(JwtException.class, () -> jwtProvider.getUserId(token));
+    assertEquals(OAuthProvider.GOOGLE, jwtProvider.getRestoreTokenClaims(token).provider());
   }
 
   // ── helpers ─────────────────────────────────────────────────────────────

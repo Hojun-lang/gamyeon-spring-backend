@@ -21,6 +21,7 @@ import com.gamyeon.question.domain.QuestionSetRepository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -91,8 +92,9 @@ public class QuestionSetApplicationService
     finalQuestions.addAll(customQuestions);
 
     List<QuestionSet> questionSets =
-        finalQuestions.stream()
-            .map(content -> QuestionSet.create(command.intvId(), content))
+        IntStream.range(0, finalQuestions.size())
+            .mapToObj(
+                index -> QuestionSet.create(command.intvId(), finalQuestions.get(index), index + 1))
             .toList();
 
     questionSetRepository.saveAll(questionSets);

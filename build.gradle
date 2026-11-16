@@ -38,6 +38,8 @@ dependencies {
 
     // Actuator
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // Monitoring
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'

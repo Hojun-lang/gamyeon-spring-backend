@@ -11,4 +11,6 @@ public interface ReportQuestionSetRepository extends JpaRepository<QuestionSet, 
 
   // 리포트 생성에 꼭 필요한 '면접 ID별 질문 리스트' 조회 메서드
   List<QuestionSet> findAllByIntvId(Long intvId);
+
+  List<QuestionSet> findAllByIntvIdOrderByQuestionOrderAsc(Long intvId);
 }

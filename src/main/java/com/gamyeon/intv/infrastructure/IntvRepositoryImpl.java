@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -44,5 +46,14 @@ public class IntvRepositoryImpl implements IntvRepository {
       return List.of();
     }
     return jpaIntvRepository.findAllById(ids);
+  }
+
+  @Override
+  public Page<Intv> findAllByUserIdAndStatuses(
+      Long userId, List<IntvStatus> statuses, Pageable pageable) {
+    if (statuses == null || statuses.isEmpty()) {
+      return jpaIntvRepository.findAllByUserId(userId, pageable);
+    }
+    return jpaIntvRepository.findAllByUserIdAndStatusIn(userId, statuses, pageable);
   }
 }

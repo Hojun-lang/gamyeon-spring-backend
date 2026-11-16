@@ -7,7 +7,9 @@ import jakarta.validation.constraints.Pattern;
 
 public record IntvRequest(
     @NotBlank(message = "면접 제목은 필수입니다.")
-        @Pattern(regexp = "^[가-힣]{1,20}$", message = "면접 제목은 한글 1~20자만 가능합니다.")
+        @Pattern(
+            regexp = "^[가-힣a-zA-Z0-9 ]{1,20}$",
+            message = "면접 제목은 공백을 포함한 한글, 영어, 숫자 1~20자만 가능합니다.")
         String title) {
 
   public CreateIntvCommand toCreateCommand(Long userId) {

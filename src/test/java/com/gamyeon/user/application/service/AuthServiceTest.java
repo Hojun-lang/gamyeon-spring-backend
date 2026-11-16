@@ -2,6 +2,7 @@ package com.gamyeon.user.application.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -21,6 +22,7 @@ import com.gamyeon.user.domain.RefreshToken;
 import com.gamyeon.user.domain.User;
 import com.gamyeon.user.domain.UserDomainException;
 import com.gamyeon.user.domain.UserStatus;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,9 +56,12 @@ class AuthServiceTest {
   @DisplayName("TAS-001 - 신규 유저 로그인 시 유저를 저장하고 JWT를 발급해야 한다")
   void shouldSaveUserAndIssueJwtWhenNewUserLogsIn() {
     OAuthLoginCommand command =
-        OAuthLoginCommand.of(OAuthProvider.GOOGLE, "auth-code", "code-verifier");
+        OAuthLoginCommand.of(
+            OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr");
 
-    given(oAuthPort.getAccessToken(OAuthProvider.GOOGLE, "auth-code", "code-verifier"))
+    given(
+            oAuthPort.getAccessToken(
+                OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr"))
         .willReturn("oauth-token");
     given(oAuthPort.getUserInfo(OAuthProvider.GOOGLE, "oauth-token"))
         .willReturn(mockUserInfo("google-123", "test@gmail.com", "테스터"));
@@ -80,9 +85,12 @@ class AuthServiceTest {
   void shouldNotSaveUserWhenExistingUserLogsIn() {
     User existingUser = existingUser(1L, OAuthProvider.GOOGLE, "google-123");
     OAuthLoginCommand command =
-        OAuthLoginCommand.of(OAuthProvider.GOOGLE, "auth-code", "code-verifier");
+        OAuthLoginCommand.of(
+            OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr");
 
-    given(oAuthPort.getAccessToken(OAuthProvider.GOOGLE, "auth-code", "code-verifier"))
+    given(
+            oAuthPort.getAccessToken(
+                OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr"))
         .willReturn("oauth-token");
     given(oAuthPort.getUserInfo(OAuthProvider.GOOGLE, "oauth-token"))
         .willReturn(mockUserInfo("google-123", "test@gmail.com", "테스터"));
@@ -102,9 +110,12 @@ class AuthServiceTest {
   void shouldThrowExceptionWhenBannedUserLogsIn() {
     User bannedUser = userWithStatus(1L, OAuthProvider.GOOGLE, "google-123", UserStatus.BANNED);
     OAuthLoginCommand command =
-        OAuthLoginCommand.of(OAuthProvider.GOOGLE, "auth-code", "code-verifier");
+        OAuthLoginCommand.of(
+            OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr");
 
-    given(oAuthPort.getAccessToken(OAuthProvider.GOOGLE, "auth-code", "code-verifier"))
+    given(
+            oAuthPort.getAccessToken(
+                OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr"))
         .willReturn("oauth-token");
     given(oAuthPort.getUserInfo(OAuthProvider.GOOGLE, "oauth-token"))
         .willReturn(mockUserInfo("google-123", "test@gmail.com", "테스터"));
@@ -120,9 +131,12 @@ class AuthServiceTest {
   void shouldThrowExceptionWhenWithdrewUserLogsIn() {
     User withdrewUser = userWithStatus(1L, OAuthProvider.GOOGLE, "google-123", UserStatus.WITHDREW);
     OAuthLoginCommand command =
-        OAuthLoginCommand.of(OAuthProvider.GOOGLE, "auth-code", "code-verifier");
+        OAuthLoginCommand.of(
+            OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr");
 
-    given(oAuthPort.getAccessToken(OAuthProvider.GOOGLE, "auth-code", "code-verifier"))
+    given(
+            oAuthPort.getAccessToken(
+                OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr"))
         .willReturn("oauth-token");
     given(oAuthPort.getUserInfo(OAuthProvider.GOOGLE, "oauth-token"))
         .willReturn(mockUserInfo("google-123", "test@gmail.com", "테스터"));
@@ -131,6 +145,52 @@ class AuthServiceTest {
 
     assertThrows(
         UserDomainException.class, () -> authService.login(command), "탈퇴한 유저 로그인 시 예외가 발생해야 합니다");
+  }
+
+  @Test
+  @DisplayName("탈퇴 유예 기간의 사용자가 로그인하면 계정 복구 확인 정보가 반환되어야 한다")
+  void shouldRequireRestoreWhenWithdrawnUserLogsInWithinRetentionPeriod() {
+    User withdrewUser = userWithStatus(1L, OAuthProvider.GOOGLE, "google-123", UserStatus.WITHDREW);
+    ReflectionTestUtils.setField(withdrewUser, "withdrawnAt", LocalDateTime.now().minusDays(1));
+    OAuthLoginCommand command =
+        OAuthLoginCommand.of(
+            OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr");
+
+    given(
+            oAuthPort.getAccessToken(
+                OAuthProvider.GOOGLE, "auth-code", "code-verifier", "https://gamyeon.co.kr"))
+        .willReturn("oauth-token");
+    given(oAuthPort.getUserInfo(OAuthProvider.GOOGLE, "oauth-token"))
+        .willReturn(mockUserInfo("google-123", "test@gmail.com", "테스터"));
+    given(userRepository.findByProviderAndProviderId(OAuthProvider.GOOGLE, "google-123"))
+        .willReturn(Optional.of(withdrewUser));
+    given(tokenPort.createRestoreToken(1L, OAuthProvider.GOOGLE)).willReturn("restore-token");
+
+    LoginResult result = authService.login(command);
+
+    assertTrue(result.isRestoreRequired());
+    assertEquals("restore-token", result.getRestoreToken());
+    verify(tokenPort, never()).createAccessToken(any());
+  }
+
+  @Test
+  @DisplayName("유효한 복구 토큰으로 탈퇴 계정을 복구하고 로그인 토큰을 발급해야 한다")
+  void shouldRestoreWithdrawnAccountAndIssueLoginTokens() {
+    User withdrewUser = userWithStatus(1L, OAuthProvider.GOOGLE, "google-123", UserStatus.WITHDREW);
+    ReflectionTestUtils.setField(withdrewUser, "withdrawnAt", LocalDateTime.now().minusDays(1));
+    given(tokenPort.getRestoreTokenClaims("restore-token"))
+        .willReturn(new TokenPort.RestoreTokenClaims(1L, OAuthProvider.GOOGLE));
+    given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(withdrewUser));
+    given(tokenPort.createAccessToken(1L)).willReturn("access-token");
+    given(tokenPort.createRefreshToken(1L)).willReturn("refresh-token");
+    given(tokenPort.getRefreshTokenExpiry()).willReturn(604_800_000L);
+
+    LoginResult result = authService.restore("restore-token");
+
+    assertEquals(UserStatus.ACTIVE, withdrewUser.getStatus());
+    assertEquals(null, withdrewUser.getWithdrawnAt());
+    assertEquals("access-token", result.getAccessToken());
+    verify(userRepository).save(withdrewUser);
   }
 
   // ── reissue ─────────────────────────────────────────────────────────────
@@ -187,7 +247,8 @@ class AuthServiceTest {
 
     assertEquals(
         CommonErrorCode.EXPIRED_TOKEN, exception.getErrorCode(), "EXPIRED_TOKEN 에러코드로 응답해야 합니다");
-    verify(refreshTokenRepository).deleteByUserId(1L);
+    // 만료 토큰 삭제는 스케줄러에 위임 → reissue() 내에서 deleteByUserId 호출하지 않음
+    verify(refreshTokenRepository, never()).deleteByUserId(any());
   }
 
   // ── logout ──────────────────────────────────────────────────────────────

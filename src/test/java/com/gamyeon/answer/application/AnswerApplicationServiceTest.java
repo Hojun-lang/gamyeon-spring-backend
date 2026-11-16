@@ -11,7 +11,9 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamyeon.answer.application.port.in.HandleAnswerSttCallbackCommand;
+import com.gamyeon.answer.application.port.in.RegisterAnswerCommand;
 import com.gamyeon.answer.application.port.in.RequestAnswerAnalysisCommand;
+import com.gamyeon.answer.application.port.out.AnswerQuestionInfo;
 import com.gamyeon.answer.application.port.out.LoadQuestionSetPort;
 import com.gamyeon.answer.domain.Answer;
 import com.gamyeon.answer.domain.AnswerAnalysisJob;
@@ -23,6 +25,7 @@ import com.gamyeon.answer.domain.AnswerRepository;
 import com.gamyeon.answer.domain.AnswerStatus;
 import com.gamyeon.common.storage.application.StorageFileKeyGenerator;
 import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlPort;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -107,6 +110,44 @@ class AnswerApplicationServiceTest {
   }
 
   @Test
+  @DisplayName("AAS-005 - 현재 답변해야 하는 질문이면 답변을 등록해야 한다")
+  void shouldRegisterAnswerWhenQuestionIsNextUnansweredQuestion() {
+    given(answerRepository.findByQuestionSetId(100L)).willReturn(Optional.empty());
+    given(loadQuestionSetPort.findById(100L))
+        .willReturn(Optional.of(new AnswerQuestionInfo(100L, 10L, 1)));
+    given(answerRepository.findAllByIntvId(10L)).willReturn(List.of());
+    given(loadQuestionSetPort.findAllByIntvIdOrderByQuestionOrderAsc(10L))
+        .willReturn(
+            List.of(new AnswerQuestionInfo(100L, 10L, 1), new AnswerQuestionInfo(101L, 10L, 2)));
+    given(answerRepository.save(any(Answer.class)))
+        .willAnswer(invocation -> invocation.getArgument(0));
+
+    answerApplicationService.register(registerCommand(10L, 100L));
+
+    verify(answerRepository).save(any(Answer.class));
+  }
+
+  @Test
+  @DisplayName("AAS-006 - 다음 순서가 아닌 질문 답변은 거절해야 한다")
+  void shouldRejectAnswerWhenQuestionIsOutOfOrder() {
+    given(answerRepository.findByQuestionSetId(101L)).willReturn(Optional.empty());
+    given(loadQuestionSetPort.findById(101L))
+        .willReturn(Optional.of(new AnswerQuestionInfo(101L, 10L, 2)));
+    given(answerRepository.findAllByIntvId(10L)).willReturn(List.of());
+    given(loadQuestionSetPort.findAllByIntvIdOrderByQuestionOrderAsc(10L))
+        .willReturn(
+            List.of(new AnswerQuestionInfo(100L, 10L, 1), new AnswerQuestionInfo(101L, 10L, 2)));
+
+    AnswerException exception =
+        assertThrows(
+            AnswerException.class,
+            () -> answerApplicationService.register(registerCommand(10L, 101L)));
+
+    assertEquals(AnswerErrorCode.ANSWER_OUT_OF_ORDER, exception.getErrorCode());
+    verify(answerRepository, never()).save(any(Answer.class));
+  }
+
+  @Test
   @DisplayName("AAS-003 - requestId로 callback을 찾으면 answer와 job을 완료 처리해야 한다")
   void shouldCompleteAnswerAndJobWhenCallbackMatchesRequestId() {
     Answer answer = answer(1L, 10L, 100L);
@@ -158,6 +199,18 @@ class AnswerApplicationServiceTest {
             1024L);
     ReflectionTestUtils.setField(answer, "id", answerId);
     return answer;
+  }
+
+  private RegisterAnswerCommand registerCommand(Long intvId, Long questionSetId) {
+    return new RegisterAnswerCommand(
+        99L,
+        intvId,
+        questionSetId,
+        "answer.mp4",
+        "answers/video.mp4",
+        "https://cdn.example.com/answers/video.mp4",
+        "video/mp4",
+        1024L);
   }
 
   private AnswerAnalysisJob answerAnalysisJob(Long jobId, Long answerId, String requestId) {

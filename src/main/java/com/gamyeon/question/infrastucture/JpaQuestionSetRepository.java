@@ -8,5 +8,7 @@ public interface JpaQuestionSetRepository extends JpaRepository<QuestionSet, Lon
 
   List<QuestionSet> findAllByIntvId(Long intvId);
 
+  List<QuestionSet> findAllByIntvIdOrderByQuestionOrderAsc(Long intvId);
+
   boolean existsByIntvId(Long intvId);
 }

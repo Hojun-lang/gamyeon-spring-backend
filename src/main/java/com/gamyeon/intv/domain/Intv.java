@@ -58,6 +58,9 @@ public class Intv extends BaseEntity {
   }
 
   public void start() {
+    if (status != IntvStatus.READY) {
+      throw new IntvException(IntvErrorCode.DO_NOT_START);
+    }
     this.startedAt = LocalDateTime.now();
     this.status = IntvStatus.IN_PROGRESS;
   }

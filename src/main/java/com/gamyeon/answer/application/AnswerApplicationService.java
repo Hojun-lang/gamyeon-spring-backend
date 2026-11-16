@@ -10,6 +10,7 @@ import com.gamyeon.answer.application.port.in.RegisterAnswerResult;
 import com.gamyeon.answer.application.port.in.RegisterAnswerUseCase;
 import com.gamyeon.answer.application.port.in.RequestAnswerAnalysisCommand;
 import com.gamyeon.answer.application.port.in.RequestAnswerAnalysisUseCase;
+import com.gamyeon.answer.application.port.out.AnswerQuestionInfo;
 import com.gamyeon.answer.application.port.out.LoadQuestionSetPort;
 import com.gamyeon.answer.domain.Answer;
 import com.gamyeon.answer.domain.AnswerAnalysisJob;
@@ -23,8 +24,11 @@ import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlComman
 import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlPort;
 import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlResult;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,12 +80,14 @@ public class AnswerApplicationService
         command.fileSizeBytes());
     validateVideoFile(command.originalFileName(), command.contentType());
     validateFileSize(command.fileSizeBytes());
+    AnswerQuestionInfo question =
+        loadQuestionSetPort
+            .findById(command.questionSetId())
+            .orElseThrow(() -> new AnswerException(AnswerErrorCode.QUESTION_SET_NOT_FOUND));
 
     String fileKey =
         storageFileKeyGenerator.generate(
-            "answers",
-            List.of(String.valueOf(command.questionSetId()), "video"),
-            command.originalFileName());
+            "answers", List.of(String.valueOf(question.intvId())), command.originalFileName());
     StoragePresignedUrlResult result =
         storagePresignedUrlPort.createUploadUrl(
             new StoragePresignedUrlCommand(fileKey, command.contentType()));
@@ -113,6 +119,7 @@ public class AnswerApplicationService
 
     validateVideoFile(command.originalFileName(), command.contentType());
     validateFileSize(command.fileSizeBytes());
+    validateSequentialAnswer(command.intvId(), command.questionSetId());
 
     Answer answer =
         Answer.create(
@@ -256,6 +263,31 @@ public class AnswerApplicationService
   private void validateFileSize(Long fileSizeBytes) {
     if (fileSizeBytes == null || fileSizeBytes < 1) {
       throw new AnswerException(AnswerErrorCode.INVALID_FILE_SIZE);
+    }
+  }
+
+  private void validateSequentialAnswer(Long intvId, Long questionSetId) {
+    AnswerQuestionInfo requestedQuestion =
+        loadQuestionSetPort
+            .findById(questionSetId)
+            .orElseThrow(() -> new AnswerException(AnswerErrorCode.QUESTION_SET_NOT_FOUND));
+
+    if (!requestedQuestion.intvId().equals(intvId)) {
+      throw new AnswerException(AnswerErrorCode.INTV_QUESTION_MISMATCH);
+    }
+
+    Map<Long, Answer> answersByQuestionSetId =
+        answerRepository.findAllByIntvId(intvId).stream()
+            .collect(Collectors.toMap(Answer::getQuestionSetId, Function.identity()));
+
+    AnswerQuestionInfo nextQuestion =
+        loadQuestionSetPort.findAllByIntvIdOrderByQuestionOrderAsc(intvId).stream()
+            .filter(question -> !answersByQuestionSetId.containsKey(question.questionSetId()))
+            .findFirst()
+            .orElseThrow(() -> new AnswerException(AnswerErrorCode.ANSWER_ALREADY_EXISTS));
+
+    if (!nextQuestion.questionSetId().equals(questionSetId)) {
+      throw new AnswerException(AnswerErrorCode.ANSWER_OUT_OF_ORDER);
     }
   }
 }

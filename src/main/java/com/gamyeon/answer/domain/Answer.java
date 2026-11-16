@@ -10,12 +10,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "answers")
+@Table(name = "answers", uniqueConstraints = @UniqueConstraint(columnNames = "question_set_id"))
 @Getter
 public class Answer extends BaseEntity {
 

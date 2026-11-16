@@ -4,7 +4,6 @@ import com.gamyeon.common.response.SuccessCode;
 import org.springframework.http.HttpStatus;
 
 public enum ReportSuccessCode implements SuccessCode {
-  REPORT_LIST_SUCCESS(HttpStatus.OK, "RPRT-S000", "success"),
   REPORT_DETAIL_SUCCESS(HttpStatus.OK, "RPRT-S000", "success"),
   REPORT_DELETE_SUCCESS(HttpStatus.OK, "RPRT-S000", "success"),
   REPORT_CALLBACK_SUCCESS(HttpStatus.OK, "RPRT-S000", "success");

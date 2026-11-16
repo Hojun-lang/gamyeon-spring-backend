@@ -1,5 +1,6 @@
 package com.gamyeon.common.config;
 
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,9 +31,14 @@ public class SecurityConfig {
         .cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(
+                auth
+                    // SSE 등 비동기(Async) 처리를 위한 내부 디스패치 무조건 허용
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC)
+                    .permitAll()
+                    .requestMatchers(
                         "/api/v1/auth/login/**",
                         "/api/v1/auth/reissue",
+                        "/api/v1/auth/account/restore",
                         "/internal/**",
                         "/health",
                         "/actuator/**")

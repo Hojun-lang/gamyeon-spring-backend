@@ -1,22 +1,19 @@
 package com.gamyeon.report.application.service;
 
 import com.gamyeon.answer.domain.Answer;
+import com.gamyeon.common.storage.application.port.out.StoragePresignedUrlPort;
 import com.gamyeon.intv.domain.Intv;
-import com.gamyeon.report.application.exception.ReportNotFoundException;
+import com.gamyeon.report.application.exception.ReportAccessDeniedException;
 import com.gamyeon.report.application.port.in.DeleteReportUseCase;
 import com.gamyeon.report.application.port.in.GetReportDetailUseCase;
-import com.gamyeon.report.application.port.in.GetReportListUseCase;
 import com.gamyeon.report.application.port.out.LoadAnswerPort;
 import com.gamyeon.report.application.port.out.LoadIntvPort;
 import com.gamyeon.report.application.port.out.LoadReportPort;
 import com.gamyeon.report.application.port.out.SaveReportPort;
 import com.gamyeon.report.domain.Report;
 import com.gamyeon.report.infrastructure.web.dto.ReportDetailResponse;
-import com.gamyeon.report.infrastructure.web.dto.ReportListResponse;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,57 +22,35 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReportQueryService
-    implements GetReportListUseCase, GetReportDetailUseCase, DeleteReportUseCase {
+public class ReportQueryService implements GetReportDetailUseCase, DeleteReportUseCase {
 
   private final LoadReportPort loadReportPort;
   private final SaveReportPort saveReportPort;
   private final LoadIntvPort loadIntvPort;
   private final LoadAnswerPort loadAnswerPort;
-
-  // ── 목록 조회 ──────────────────────────────────────────────────────────────
-
-  @Override
-  @Transactional(readOnly = true)
-  public List<ReportListResponse> getList(Long userId) {
-    List<Report> reports = loadReportPort.findAllByUserId(userId);
-
-    if (reports.isEmpty()) {
-      return List.of();
-    }
-
-    //  intvId 목록 추출 → IN 쿼리 1회 조회 → Map으로 매핑 (N+1 제거)
-    List<Long> intvIds = reports.stream().map(Report::getIntvId).toList();
-    Map<Long, Intv> intvMap =
-        loadIntvPort.findAllByIds(intvIds).stream()
-            .collect(Collectors.toMap(Intv::getId, intv -> intv));
-
-    return reports.stream()
-        .map(
-            report -> {
-              Intv intv = intvMap.get(report.getIntvId());
-              return ReportListResponse.of(
-                  report.getIntvId(),
-                  intv != null ? intv.getTitle() : null,
-                  intv != null ? intv.getStatus().name() : null,
-                  intv != null ? intv.getDurationSeconds() : null,
-                  report.getUpdatedAt(),
-                  report);
-            })
-        .toList();
-  }
+  private final StoragePresignedUrlPort storagePresignedUrlPort;
 
   // ── 상세 조회 ──────────────────────────────────────────────────────────────
-
+  /*
+   * 리포트가 존재하지 않거나, 타 사용자 소유인 경우 모두 403 반환
+   * (존재 여부 노출 방지를 위해 두 케이스를 동일하게 처리)
+   */
   @Override
   @Transactional(readOnly = true)
   public ReportDetailResponse getDetail(Long intvId, Long userId) {
-    Report report =
-        loadReportPort.findByIntvId(intvId).orElseThrow(() -> new ReportNotFoundException(intvId));
+    Report report = loadReportPort.findByIntvId(intvId).orElse(null);
+
+    if (report == null || !report.getUserId().equals(userId)) {
+      log.warn(
+          "[Report] 권한 없는 접근 시도 - intvId={}, requestUserId={}, ownerUserId={}",
+          intvId,
+          userId,
+          report != null ? report.getUserId() : null);
+      throw new ReportAccessDeniedException(intvId);
+    }
 
     Intv intv = loadIntvPort.findById(intvId).orElse(null);
     List<Answer> answers = loadAnswerPort.findByIntvIdOrderByAnswerOrder(intvId);
-
     return ReportDetailResponse.builder()
         .intvId(intvId)
         .intvStatus(intv != null ? intv.getStatus().name() : null)
@@ -86,22 +61,27 @@ public class ReportQueryService
   }
 
   // ── 삭제 ──────────────────────────────────────────────────────────────────
-
+  /*
+   * 리포트가 존재하지 않거나, 타 사용자 소유인 경우 모두 403 반환
+   */
   @Override
   @Transactional
   public void delete(Long intvId, Long userId) {
-    Report report =
-        loadReportPort.findByIntvId(intvId).orElseThrow(() -> new ReportNotFoundException(intvId));
+    Report report = loadReportPort.findByIntvId(intvId).orElse(null);
 
-    if (!report.getUserId().equals(userId)) {
-      throw new ReportNotFoundException(intvId);
+    if (report == null || !report.getUserId().equals(userId)) {
+      log.warn(
+          "[Report] 권한 없는 삭제 시도 - intvId={}, requestUserId={}, ownerUserId={}",
+          intvId,
+          userId,
+          report != null ? report.getUserId() : null);
+      throw new ReportAccessDeniedException(intvId);
     }
 
     saveReportPort.delete(report);
   }
 
   // ── report_data jsonb + Answer 미디어 파싱 ────────────────────────────────
-
   @SuppressWarnings("unchecked")
   private ReportDetailResponse.ReportDetail parseReportData(Report report, List<Answer> answers) {
     if (report.getReportData() == null) return null;
@@ -149,7 +129,10 @@ public class ReportQueryService
                                   ? (List<String>) map.get("feedback_badges")
                                   : new ArrayList<>())
                           .feedback(feedback)
-                          .mediaUrl(answer != null ? answer.getFileUrl() : null)
+                          .mediaUrl(
+                              answer != null && answer.getFileUrl() != null
+                                  ? storagePresignedUrlPort.createReadUrl(answer.getFileUrl())
+                                  : null)
                           .build();
                     })
                 .toList();

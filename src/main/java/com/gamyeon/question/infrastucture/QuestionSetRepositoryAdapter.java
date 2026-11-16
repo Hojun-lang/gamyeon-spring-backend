@@ -21,7 +21,7 @@ public class QuestionSetRepositoryAdapter implements QuestionSetRepository {
 
   @Override
   public List<QuestionSet> getAllByIntvId(Long intvId) {
-    return jpaQuestionSetRepository.findAllByIntvId(intvId);
+    return jpaQuestionSetRepository.findAllByIntvIdOrderByQuestionOrderAsc(intvId);
   }
 
   @Override
